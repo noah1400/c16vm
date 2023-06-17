@@ -2,6 +2,8 @@
 
  16-bit Virtual Machine implemented in c
 
+Compiling: `gcc -o c16vm c16memory.c c16cpu.c c16vm.c -Iinclude -Wall`
+
 ## Instruction Set
 
 `O`: OpCode
