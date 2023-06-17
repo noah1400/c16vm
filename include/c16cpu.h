@@ -6,6 +6,13 @@
 #include <stdlib.h>
 #include <c16instructions.h>
 #include <c16consts.h>
+#ifdef _WIN32
+    #include <windows.h>
+    #define SLEEP_MS(x) Sleep(x)
+#else
+    #include <unistd.h>
+    #define SLEEP_MS(x) usleep(x*1000)
+#endif
 
 
 
@@ -50,11 +57,11 @@ void c16cpu_popState(c16cpu_t *cpu);
 
 size_t c16cpu_fetchRegisterIndex(c16cpu_t *cpu);
 
-void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu);
+int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu);
 
 void c16cpu_debug(c16cpu_t *cpu);
 void c16cpu_viewMemoryAt(c16cpu_t *cpu, uint16_t offset, uint16_t size);
-void c16cpu_step(c16cpu_t *cpu);
+int c16cpu_step(c16cpu_t *cpu);
 void c16cpu_attachDebugger(c16cpu_t *cpu, void(*f)(c16cpu_t *cpu));
 
 void c16cpu_destroy(c16cpu_t *cpu);

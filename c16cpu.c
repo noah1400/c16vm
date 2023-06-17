@@ -168,7 +168,7 @@ size_t c16cpu_fetchRegisterIndex(c16cpu_t *cpu)
     return (c16cpu_fetch(cpu) % REG_COUNT) * sizeof(uint16_t);
 }
 
-void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
+int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
 {
     switch (opcode)
     {
@@ -178,7 +178,7 @@ void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         uint16_t reg = c16cpu_fetchRegisterIndex(cpu);
         c16memory_setUint16(cpu->registers, reg, literal);
     }
-        return;
+        return MOV_LIT_REG;
     case MOV_REG_REG:
     {
         uint16_t registerFrom = c16cpu_fetchRegisterIndex(cpu);
@@ -186,7 +186,7 @@ void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         uint16_t value = c16memory_getUint16(cpu->registers, registerFrom);
         c16memory_setUint16(cpu->registers, registerTo, value);
     }
-        return;
+        return MOV_REG_REG;
     case MOV_REG_MEM:
     {
         uint16_t registerFrom = c16cpu_fetchRegisterIndex(cpu);
@@ -194,7 +194,7 @@ void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         uint16_t value = c16memory_getUint16(cpu->registers, registerFrom);
         c16memory_setUint16(cpu->memory, address, value);
     }
-        return;
+        return MOV_REG_MEM;
     case MOV_MEM_REG:
     {
         uint16_t address = c16cpu_fetch16(cpu);
@@ -202,7 +202,7 @@ void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         uint16_t value = c16memory_getUint16(cpu->memory, address);
         c16memory_setUint16(cpu->registers, registerTo, value);
     }
-        return;
+        return MOV_MEM_REG;
     case ADD_REG_REG:
     {
         uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);;
@@ -212,7 +212,7 @@ void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         uint16_t result = r1Value + r2Value;
         c16cpu_setRegister(cpu, "ACC", result);
     }
-        return;
+        return ADD_REG_REG;
     case JMP_NOT_EQ:
     {
         uint16_t value = c16cpu_fetch16(cpu);
@@ -223,34 +223,34 @@ void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
             c16cpu_setRegister(cpu, "IP", address);
         }
     }
-        return;
+        return JMP_NOT_EQ;
     case PSH_LIT:
     {
         uint16_t value = c16cpu_fetch16(cpu);
         c16cpu_push(cpu, value);
     }
-        return;
+        return PSH_LIT;
     case PSH_REG:
     {
         uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
         uint16_t value = c16memory_getUint16(cpu->registers, registerIndex);
         c16cpu_push(cpu, value);
     }
-        return;
+        return PSH_REG;
     case POP:
     {
         uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
         uint16_t value = c16cpu_pop(cpu);
         c16memory_setUint16(cpu->registers, registerIndex, value);
     }
-        return;
+        return POP;
     case CAL_LIT:
     {
         uint16_t address = c16cpu_fetch16(cpu);
         c16cpu_pushState(cpu);
         c16cpu_setRegister(cpu, "IP", address);
     }
-        return;
+        return CAL_LIT;
     case CAL_REG:
     {
         uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
@@ -258,18 +258,22 @@ void c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         c16cpu_pushState(cpu);
         c16cpu_setRegister(cpu, "IP", address);
     }
-        return;
+        return CAL_REG;
     case RET:
     {
         c16cpu_popState(cpu);
     }
-        return;
+        return RET;
         
     case NOP:
     {
         uint8_t unused = c16cpu_fetch(cpu);
         (void)unused;
-        return;
+        return NOP;
+    }
+    case HLT:
+    {
+        return HLT;
     }
     }
 
@@ -297,11 +301,11 @@ void c16cpu_viewMemoryAt(c16cpu_t *cpu, uint16_t offset, uint16_t size)
     printf("\n");
 }
 
-void c16cpu_step(c16cpu_t *cpu)
+int c16cpu_step(c16cpu_t *cpu)
 {
     printf("IP: 0x%04x\n", c16cpu_getRegister(cpu, "IP"));
     uint8_t opcode = c16cpu_fetch(cpu);
-    c16cpu_execute(opcode, cpu);
+    return c16cpu_execute(opcode, cpu);
 }
 
 void c16cpu_attachDebugger(c16cpu_t *cpu, void(*f)(c16cpu_t *cpu))
@@ -327,4 +331,54 @@ void c16cpu_destroy(c16cpu_t *cpu)
     c16memory_destroy(cpu->memory);
     c16memory_destroy(cpu->registers);
     free(cpu);
+}
+
+void _c16cpu_sleep_ms(double ms)
+{
+    SLEEP_MS(ms);
+}
+
+void c16cpu_run(c16cpu_t *cpu)
+{
+#ifdef _WIN32
+    LARGE_INTEGER frequency;
+    LARGE_INTEGER start, end;
+#else
+    struct timespec start, end;
+#endif
+
+    double elapsed_ms, target_ms, sleep_ms;
+
+#ifdef _WIN32
+    QueryPerformanceFrequency(&frequency);
+#endif
+
+    while(1) {
+#ifdef _WIN32
+        QueryPerformanceCounter(&start);
+#else
+        clock_gettime(CLOCK_MONOTONIC, &start);
+#endif
+        int opcode = c16cpu_step(cpu);
+        if (opcode == HLT)
+        {
+            break;
+        }
+#ifdef _WIN32
+        QueryPerformanceCounter(&end);
+        elapsed_ms = (end.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
+#else
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        elapsed_ms = (end.tv_sec - start.tv_sec) * 1000.0;
+        elapsed_ms += (end.tv_nsec - start.tv_nsec) / 1000000.0;
+#endif
+        target_ms = 1000.0 / C16_CPU_SPEED;
+
+        sleep_ms = target_ms - elapsed_ms;
+        if (sleep_ms > 0)
+        {
+            _c16cpu_sleep_ms(sleep_ms);
+        }
+    }
+
 }

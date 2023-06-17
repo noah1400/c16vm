@@ -14,5 +14,6 @@
 #define CAL_LIT     (uint8_t)0x5E
 #define CAL_REG     (uint8_t)0x5F
 #define RET         (uint8_t)0x60
+#define HLT         (uint8_t)0xFF
 
 #endif // _c16instructions_h_

@@ -17,5 +17,6 @@
 #define REG_FP 11
 
 #define MEMORY_BYTES 256*256
+#define C16_CPU_SPEED 1000
 
 #endif // _c16consts_h
