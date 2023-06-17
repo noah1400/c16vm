@@ -53,10 +53,5 @@
   "C_Cpp_Runner.useAddressSanitizer": false,
   "C_Cpp_Runner.useUndefinedSanitizer": false,
   "C_Cpp_Runner.useLeakSanitizer": false,
-  "C_Cpp_Runner.showCompilationTime": false,
-  "files.associations": {
-    "c16instructions.h": "c",
-    "c16cpu.h": "c",
-    "c16memory.h": "c"
-  }
+  "C_Cpp_Runner.showCompilationTime": false
 }
