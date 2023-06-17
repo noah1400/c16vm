@@ -26,3 +26,4 @@ Compiling: `gcc -o c16vm c16memory.c c16cpu.c c16vm.c -Iinclude -Wall`
 | CAL_LIT     | 0x5E    | Call subroutine from literal address | `0xOOLLLL` |
 | CAL_REG     | 0x5F    | Call subroutine from register value | `0xOORR` |
 | RET         | 0x60    | Return from subroutine | `0xOO` |
+| HLT         | 0xFF    | End Program | `0xOO` |
