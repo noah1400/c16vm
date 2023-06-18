@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <c16instructions.h>
 #include <c16consts.h>
+#include <c16memmap.h>
 #ifdef _WIN32
     #include <windows.h>
     #define SLEEP_MS(x) Sleep(x)
@@ -18,7 +19,7 @@
 
 typedef struct
 {
-    void *memory;
+    C16MemoryMap *memory;
     void *registers;
     char *regNames[REG_COUNT];
     size_t stackFrameSize;
@@ -38,7 +39,7 @@ typedef enum
     R8 = 9
 } reg_t;
 
-c16cpu_t *c16cpu_create(void *memory);
+c16cpu_t *c16cpu_create(C16MemoryMap *memoryMap);
 
 int c16cpu_mapRegisterToOffset(c16cpu_t *cpu, char *regName);
 reg_t c16cpu_mapRegisterToEnum(c16cpu_t *cpu, char *regName);

@@ -1,7 +1,7 @@
 #include <c16cpu.h>
 #include <c16consts.h>
 
-c16cpu_t *c16cpu_create(void *memory)
+c16cpu_t *c16cpu_create(C16MemoryMap *memory)
 {
     c16cpu_t *cpu = malloc(sizeof(c16cpu_t));
     if (cpu == NULL)
@@ -90,7 +90,7 @@ void c16cpu_setRegister(c16cpu_t *cpu, char *regName, uint16_t value)
 uint8_t c16cpu_fetch(c16cpu_t *cpu)
 {
     uint16_t nextInstructionAddress = c16cpu_getRegister(cpu, "IP");
-    uint8_t instruction = c16memory_getUint8(cpu->memory, nextInstructionAddress);
+    uint8_t instruction = c16memmap_getUint8(cpu->memory, nextInstructionAddress);
     c16cpu_setRegister(cpu, "IP", nextInstructionAddress + sizeof(uint8_t));
     return instruction;
 }
@@ -98,7 +98,7 @@ uint8_t c16cpu_fetch(c16cpu_t *cpu)
 uint16_t c16cpu_fetch16(c16cpu_t *cpu)
 {
     uint16_t nextInstructionAddress = c16cpu_getRegister(cpu, "IP");
-    uint16_t instruction = c16memory_getUint16(cpu->memory, nextInstructionAddress);
+    uint16_t instruction = c16memmap_getUint16(cpu->memory, nextInstructionAddress);
     c16cpu_setRegister(cpu, "IP", nextInstructionAddress + sizeof(uint16_t));
     return instruction;
 }
@@ -106,7 +106,7 @@ uint16_t c16cpu_fetch16(c16cpu_t *cpu)
 void c16cpu_push(c16cpu_t *cpu, uint16_t value)
 {
     uint16_t nextSpAddress = c16cpu_getRegister(cpu, "SP");
-    c16memory_setUint16(cpu->memory, nextSpAddress, value);
+    c16memmap_setUint16(cpu->memory, nextSpAddress, value);
     c16cpu_setRegister(cpu, "SP", nextSpAddress - sizeof(uint16_t));
     cpu->stackFrameSize += sizeof(uint16_t);
 }
@@ -116,7 +116,7 @@ uint16_t c16cpu_pop(c16cpu_t *cpu)
     uint16_t nextSpAddress = c16cpu_getRegister(cpu, "SP") + sizeof(uint16_t);
     c16cpu_setRegister(cpu, "SP", nextSpAddress);
     cpu->stackFrameSize -= sizeof(uint16_t);
-    return c16memory_getUint16(cpu->memory, nextSpAddress);
+    return c16memmap_getUint16(cpu->memory, nextSpAddress);
 }
 
 void c16cpu_pushState(c16cpu_t *cpu)
@@ -192,14 +192,14 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         uint16_t registerFrom = c16cpu_fetchRegisterIndex(cpu);
         uint16_t address = c16cpu_fetch16(cpu);
         uint16_t value = c16memory_getUint16(cpu->registers, registerFrom);
-        c16memory_setUint16(cpu->memory, address, value);
+        c16memmap_setUint16(cpu->memory, address, value);
     }
         return MOV_REG_MEM;
     case MOV_MEM_REG:
     {
         uint16_t address = c16cpu_fetch16(cpu);
         uint16_t registerTo = c16cpu_fetchRegisterIndex(cpu);;
-        uint16_t value = c16memory_getUint16(cpu->memory, address);
+        uint16_t value = c16memmap_getUint16(cpu->memory, address);
         c16memory_setUint16(cpu->registers, registerTo, value);
     }
         return MOV_MEM_REG;
@@ -296,7 +296,7 @@ void c16cpu_viewMemoryAt(c16cpu_t *cpu, uint16_t offset, uint16_t size)
     printf("0x%04x: ", offset);
     for (int i = 0; i < size; i++)
     {
-        printf("%02x ", c16memory_getUint8(cpu->memory, offset + i));
+        printf("%02x ", c16memmap_getUint8(cpu->memory, offset + i));
     }
     printf("\n");
 }
@@ -328,7 +328,7 @@ void c16cpu_attachDebugger(c16cpu_t *cpu, void(*f)(c16cpu_t *cpu))
 
 void c16cpu_destroy(c16cpu_t *cpu)
 {
-    c16memory_destroy(cpu->memory);
+    c16memmap_destroyMemoryMap(cpu->memory);
     c16memory_destroy(cpu->registers);
     free(cpu);
 }

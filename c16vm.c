@@ -12,8 +12,10 @@ void debugCallback(c16cpu_t *cpu)
 
 int main(void)
 {
-    void *memory = c16memory_createMemory(MEMORY_BYTES);
-    c16cpu_t *cpu = c16cpu_create(memory);
+    C16MemoryMap *mapper = c16memmap_createMemoryMap();
+    C16MemoryAccessDevice *memory = c16memory_createDevice(256*256);
+    c16memmap_map(mapper, memory, 0, 0xffff, 0);
+    c16cpu_t *cpu = c16cpu_create(mapper);
 
     uint16_t subroutineAddress = 0x3000;
 
@@ -38,68 +40,65 @@ int main(void)
     * RET
     */
 
-    c16memory_writeToMemory(memory, i++, PSH_LIT);
-    c16memory_writeToMemory(memory, i++, 0x33);
-    c16memory_writeToMemory(memory, i++, 0x33);
+    c16memmap_setUint8(mapper, i++, PSH_LIT);
+    c16memmap_setUint8(mapper, i++, 0x33);
+    c16memmap_setUint8(mapper, i++, 0x33);
 
-    c16memory_writeToMemory(memory, i++, PSH_LIT);
-    c16memory_writeToMemory(memory, i++, 0x22);
-    c16memory_writeToMemory(memory, i++, 0x22);
+    c16memmap_setUint8(mapper, i++, PSH_LIT);
+    c16memmap_setUint8(mapper, i++, 0x22);
+    c16memmap_setUint8(mapper, i++, 0x22);
 
-    c16memory_writeToMemory(memory, i++, PSH_LIT);
-    c16memory_writeToMemory(memory, i++, 0x11);
-    c16memory_writeToMemory(memory, i++, 0x11);
+    c16memmap_setUint8(mapper, i++, PSH_LIT);
+    c16memmap_setUint8(mapper, i++, 0x11);
+    c16memmap_setUint8(mapper, i++, 0x11);
 
-    c16memory_writeToMemory(memory, i++, MOV_LIT_REG);
-    c16memory_writeToMemory(memory, i++, 0x12);
-    c16memory_writeToMemory(memory, i++, 0x34);
-    c16memory_writeToMemory(memory, i++, REG_R1);
+    c16memmap_setUint8(mapper, i++, MOV_LIT_REG);
+    c16memmap_setUint8(mapper, i++, 0x12);
+    c16memmap_setUint8(mapper, i++, 0x34);
+    c16memmap_setUint8(mapper, i++, R1);
 
-    c16memory_writeToMemory(memory, i++, MOV_LIT_REG);
-    c16memory_writeToMemory(memory, i++, 0x56);
-    c16memory_writeToMemory(memory, i++, 0x78);
-    c16memory_writeToMemory(memory, i++, REG_R4);
+    c16memmap_setUint8(mapper, i++, MOV_LIT_REG);
+    c16memmap_setUint8(mapper, i++, 0x56);
+    c16memmap_setUint8(mapper, i++, 0x78);
+    c16memmap_setUint8(mapper, i++, R4);
 
-    c16memory_writeToMemory(memory, i++, PSH_LIT);
-    c16memory_writeToMemory(memory, i++, 0x00);
-    c16memory_writeToMemory(memory, i++, 0x00);
+    c16memmap_setUint8(mapper, i++, PSH_LIT);
+    c16memmap_setUint8(mapper, i++, 0x00);
+    c16memmap_setUint8(mapper, i++, 0x00);
 
-    c16memory_writeToMemory(memory, i++, CAL_LIT);
-    c16memory_writeToMemory(memory, i++, (subroutineAddress & 0xFF00) >> 8);
-    c16memory_writeToMemory(memory, i++, subroutineAddress & 0x00FF);
+    c16memmap_setUint8(mapper, i++, CAL_LIT);
+    c16memmap_setUint8(mapper, i++, (subroutineAddress & 0xff00) >> 8);
+    c16memmap_setUint8(mapper, i++, subroutineAddress & 0x00ff);
 
-    c16memory_writeToMemory(memory, i++, PSH_LIT);
-    c16memory_writeToMemory(memory, i++, 0x44);
-    c16memory_writeToMemory(memory, i++, 0x44);
+    c16memmap_setUint8(mapper, i++, PSH_LIT);
+    c16memmap_setUint8(mapper, i++, 0x44);
+    c16memmap_setUint8(mapper, i++, 0x44);
 
-    // 0x3333:
     i = subroutineAddress;
 
-    c16memory_writeToMemory(memory, i++, PSH_LIT);
-    c16memory_writeToMemory(memory, i++, 0x01);
-    c16memory_writeToMemory(memory, i++, 0x02);
+    c16memmap_setUint8(mapper, i++, PSH_LIT);
+    c16memmap_setUint8(mapper, i++, 0x01);
+    c16memmap_setUint8(mapper, i++, 0x02);
 
-    c16memory_writeToMemory(memory, i++, PSH_LIT);
-    c16memory_writeToMemory(memory, i++, 0x03);
-    c16memory_writeToMemory(memory, i++, 0x04);
+    c16memmap_setUint8(mapper, i++, PSH_LIT);
+    c16memmap_setUint8(mapper, i++, 0x03);
+    c16memmap_setUint8(mapper, i++, 0x04);
 
-    c16memory_writeToMemory(memory, i++, PSH_LIT);
-    c16memory_writeToMemory(memory, i++, 0x05);
-    c16memory_writeToMemory(memory, i++, 0x06);
+    c16memmap_setUint8(mapper, i++, PSH_LIT);
+    c16memmap_setUint8(mapper, i++, 0x05);
+    c16memmap_setUint8(mapper, i++, 0x06);
 
-    c16memory_writeToMemory(memory, i++, MOV_LIT_REG);
-    c16memory_writeToMemory(memory, i++, 0x07);
-    c16memory_writeToMemory(memory, i++, 0x08);
-    c16memory_writeToMemory(memory, i++, REG_R1);
+    c16memmap_setUint8(mapper, i++, MOV_LIT_REG);
+    c16memmap_setUint8(mapper, i++, 0x07);
+    c16memmap_setUint8(mapper, i++, 0x08);
+    c16memmap_setUint8(mapper, i++, R1);
 
-    c16memory_writeToMemory(memory, i++, MOV_LIT_REG);
-    c16memory_writeToMemory(memory, i++, 0x09);
-    c16memory_writeToMemory(memory, i++, 0x0A);
-    c16memory_writeToMemory(memory, i++, REG_R8);
+    c16memmap_setUint8(mapper, i++, MOV_LIT_REG);
+    c16memmap_setUint8(mapper, i++, 0x09);
+    c16memmap_setUint8(mapper, i++, 0x0A);
+    c16memmap_setUint8(mapper, i++, R8);
 
-    c16memory_writeToMemory(memory, i++, RET);
-
-
+    c16memmap_setUint8(mapper, i++, RET);
 
     c16cpu_debug(cpu);
     c16cpu_viewMemoryAt(cpu, c16cpu_getRegister(cpu, "IP"), 8);
