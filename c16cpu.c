@@ -168,6 +168,8 @@ size_t c16cpu_fetchRegisterIndex(c16cpu_t *cpu)
     return (c16cpu_fetch(cpu) % REG_COUNT) * sizeof(uint16_t);
 }
 
+
+
 int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
 {
     switch (opcode)
@@ -283,7 +285,7 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
 
     c16cpu_debug(cpu);
     printf("IP: 0x%04x\n", c16cpu_getRegister(cpu, "IP"));
-    c16cpu_viewMemoryAt(cpu, c16cpu_getRegister(cpu, "IP")-8, 24);
+    c16cpu_viewMemoryAtWithHighlightedByte(cpu, c16cpu_getRegister(cpu, "IP")-8, 16, c16cpu_getRegister(cpu, "IP")-1);
 
     exit(EXIT_FAILURE);
 }
@@ -308,15 +310,35 @@ void c16cpu_viewMemoryAt(c16cpu_t *cpu, uint16_t offset, uint16_t size)
     printf("\n");
 }
 
+void c16cpu_viewMemoryAtWithHighlightedByte(c16cpu_t *cpu, uint16_t offset, uint16_t size, uint16_t highlightedByte)
+{
+    printf("0x%04x: ", offset);
+    for (int i = 0; i < size; i++)
+    {
+        if (offset + i == highlightedByte)
+        {
+            // Black background red text
+            printf("\033[40m\033[91m");
+        }
+        printf("%02x ", c16memmap_getUint8(cpu->memory, offset + i));
+        if (offset + i == highlightedByte)
+        {
+            printf("\033[0m");
+        }
+    }
+    printf("\n");
+}
+
 int c16cpu_step(c16cpu_t *cpu)
 {
     uint8_t opcode = c16cpu_fetch(cpu);
     return c16cpu_execute(opcode, cpu);
 }
 
+
 void c16cpu_attachDebugger(c16cpu_t *cpu, void(*f)(c16cpu_t *cpu))
 {
-    char input[1];
+    char input[100];
     while (1)
     {
         f(cpu);
@@ -327,6 +349,15 @@ void c16cpu_attachDebugger(c16cpu_t *cpu, void(*f)(c16cpu_t *cpu))
         {
             break;
         }
+        if (input[0] > '0' && input[0] < '9')
+        {
+            int steps = (int)input[0] - '0';
+            for (int i = 0; i < steps; i++)
+            {
+                f(cpu);
+            }
+        }
+
     }
 
     printf("Exiting debugger\n");

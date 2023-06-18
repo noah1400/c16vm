@@ -63,6 +63,7 @@ void c16cpu_run(c16cpu_t *cpu);
 
 void c16cpu_debug(c16cpu_t *cpu);
 void c16cpu_viewMemoryAt(c16cpu_t *cpu, uint16_t offset, uint16_t size);
+void c16cpu_viewMemoryAtWithHighlightedByte(c16cpu_t *cpu, uint16_t offset, uint16_t size, uint16_t highlightedByte);
 int c16cpu_step(c16cpu_t *cpu);
 void c16cpu_attachDebugger(c16cpu_t *cpu, void(*f)(c16cpu_t *cpu));
 
