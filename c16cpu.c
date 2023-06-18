@@ -26,8 +26,8 @@ c16cpu_t *c16cpu_create(C16MemoryMap *memory)
     cpu->regNames[REG_SP] = "SP";
     cpu->regNames[REG_FP] = "FP";
 
-    c16cpu_setRegister(cpu, "SP", MEMORY_BYTES - 1 - 1);
-    c16cpu_setRegister(cpu, "FP", MEMORY_BYTES - 1 - 1);
+    c16cpu_setRegister(cpu, "SP", 0xffff - 1);
+    c16cpu_setRegister(cpu, "FP", 0xffff - 1);
 
 
     cpu->stackFrameSize = 0;
@@ -105,9 +105,9 @@ uint16_t c16cpu_fetch16(c16cpu_t *cpu)
 
 void c16cpu_push(c16cpu_t *cpu, uint16_t value)
 {
-    uint16_t nextSpAddress = c16cpu_getRegister(cpu, "SP");
-    c16memmap_setUint16(cpu->memory, nextSpAddress, value);
-    c16cpu_setRegister(cpu, "SP", nextSpAddress - sizeof(uint16_t));
+    uint16_t spAddress = c16cpu_getRegister(cpu, "SP");
+    c16memmap_setUint16(cpu->memory, spAddress, value);
+    c16cpu_setRegister(cpu, "SP", spAddress - sizeof(uint16_t));
     cpu->stackFrameSize += sizeof(uint16_t);
 }
 
@@ -142,7 +142,7 @@ void c16cpu_popState(c16cpu_t *cpu)
     c16cpu_setRegister(cpu, "SP", framePointerAddress);
 
     cpu->stackFrameSize = c16cpu_pop(cpu);
-    const uint16_t stackFrameSize = cpu->stackFrameSize;
+    const uint16_t sfs = cpu->stackFrameSize;
 
     c16cpu_setRegister(cpu, "IP", c16cpu_pop(cpu));
     c16cpu_setRegister(cpu, "R8", c16cpu_pop(cpu));
@@ -160,7 +160,7 @@ void c16cpu_popState(c16cpu_t *cpu)
         c16cpu_pop(cpu);
     }
 
-    c16cpu_setRegister(cpu, "FP", framePointerAddress + stackFrameSize);
+    c16cpu_setRegister(cpu, "FP", framePointerAddress + sfs);
 }
 
 size_t c16cpu_fetchRegisterIndex(c16cpu_t *cpu)
@@ -218,7 +218,11 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         uint16_t value = c16cpu_fetch16(cpu);
         uint16_t address = c16cpu_fetch16(cpu);
 
-        if (value != c16cpu_getRegister(cpu, "ACC"))
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+
+        // printf("JMP_NOT_EQ: %d != %d\n", value, acc);
+
+        if (value != acc)
         {
             c16cpu_setRegister(cpu, "IP", address);
         }
@@ -276,6 +280,11 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
     }
 
     printf("Error: Unknown opcode: 0x%02x\n", opcode);
+
+    c16cpu_debug(cpu);
+    printf("IP: 0x%04x\n", c16cpu_getRegister(cpu, "IP"));
+    c16cpu_viewMemoryAt(cpu, c16cpu_getRegister(cpu, "IP")-8, 24);
+
     exit(EXIT_FAILURE);
 }
 
