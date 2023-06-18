@@ -1,115 +1,117 @@
 #include <c16memory.h>
 #include <c16cpu.h>
 #include <c16consts.h>
+#include <c16screen.h>
 
 void debugCallback(c16cpu_t *cpu)
 {
     c16cpu_step(cpu);
-    c16cpu_debug(cpu);
-    c16cpu_viewMemoryAt(cpu, c16cpu_getRegister(cpu, "IP"), 8);
-    c16cpu_viewMemoryAt(cpu, 0xffff - 1 - 42, 44);
+    printf("ACC: ");
+    c16cpu_viewMemoryAt(cpu, c16cpu_getRegister(cpu, "ACC"), 8);
+    // c16cpu_debug(cpu);
+    // c16cpu_viewMemoryAt(cpu, c16cpu_getRegister(cpu, "IP"), 8);
+    // c16cpu_viewMemoryAt(cpu, 0xffff - 1 - 42, 44);
+}
+
+void writeCharToScreen(void *memory, size_t *i, char ch, uint8_t command, uint8_t position)
+{
+    c16memory_writeToMemory(memory, (*i)++, MOV_LIT_REG);
+    c16memory_writeToMemory(memory, (*i)++, command);
+    c16memory_writeToMemory(memory, (*i)++, ch);
+    c16memory_writeToMemory(memory, (*i)++, R1);
+
+    c16memory_writeToMemory(memory, (*i)++, MOV_REG_MEM);
+    c16memory_writeToMemory(memory, (*i)++, R1);
+    c16memory_writeToMemory(memory, (*i)++, 0x30);
+    c16memory_writeToMemory(memory, (*i)++, position);
 }
 
 int main(void)
 {
+    printf("C16VM\n");
     C16MemoryMap *mapper = c16memmap_createMemoryMap();
     C16MemoryAccessDevice *memory = c16memory_createDevice(256*256);
+    void *data = memory->data;
+    printf("Memory: %p\n", data);
+    C16MemoryAccessDevice *screen = c16screen_createDevice();
     c16memmap_map(mapper, memory, 0, 0xffff, 0);
+    c16memmap_map(mapper, screen, 0x3000, 0x30ff, 1);
+    printf("Mapped memory\n");
     c16cpu_t *cpu = c16cpu_create(mapper);
-
-    uint16_t subroutineAddress = 0x3000;
-
+    printf("Created CPU\n");
+    uint16_t waitSubroutineAddress = 0x3100;
     size_t i = 0;
 
-    /*
-    * PSH_LIT 0x3333
-    * PSH_LIT 0x2222
-    * PSH_LIT 0x1111
-    * MOV_LIT_REG 0x1234, R1
-    * MOV_LIT_REG 0x5678, R4
-    * PSH_LIT 0x0000
-    * CAL_LIT 0x3000
-    * PSH_LIT 0x4444
-    * 
-    * 0x3333:
-    * PSH_LIT 0x0102
-    * PSH_LIT 0x0304
-    * PSH_LIT 0x0506
-    * MOV_LIT_REG 0x0708, R1
-    * MOV_LIT_REG 0x090A, R8
-    * RET
-    */
+    char boldValue = 0;
 
-    c16memmap_setUint8(mapper, i++, PSH_LIT);
-    c16memmap_setUint8(mapper, i++, 0x33);
-    c16memmap_setUint8(mapper, i++, 0x33);
+    for (int x = 3; x <= 15; x+=2)
+    {
+        boldValue = boldValue == 0 ? 1 : 0;
+        // clear screen
+        writeCharToScreen(data, &i, ' ', 0xff, 0);
+        
+        for (int index = 0; index <= 0xff; index++)
+        {
+            uint8_t command = (index % 2 == 0) ? 0x01 : 0x02;
+            char ch = (index % x == 0) ? ' ' : '+';
+            writeCharToScreen(data, &i, ch, command, index);
+        }
 
-    c16memmap_setUint8(mapper, i++, PSH_LIT);
-    c16memmap_setUint8(mapper, i++, 0x22);
-    c16memmap_setUint8(mapper, i++, 0x22);
+        // no arguments for functional call
+        c16memory_writeToMemory(data, i++, PSH_LIT);
+        c16memory_writeToMemory(data, i++, 0x00);
+        c16memory_writeToMemory(data, i++, 0x00);
 
-    c16memmap_setUint8(mapper, i++, PSH_LIT);
-    c16memmap_setUint8(mapper, i++, 0x11);
-    c16memmap_setUint8(mapper, i++, 0x11);
+        // call subroutine
+        c16memory_writeToMemory(data, i++, CAL_LIT);
+        c16memory_writeToMemory(data, i++, (waitSubroutineAddress & 0xff00) >> 8);
+        c16memory_writeToMemory(data, i++, (waitSubroutineAddress & 0x00ff));
+    }
 
-    c16memmap_setUint8(mapper, i++, MOV_LIT_REG);
-    c16memmap_setUint8(mapper, i++, 0x12);
-    c16memmap_setUint8(mapper, i++, 0x34);
-    c16memmap_setUint8(mapper, i++, R1);
+    // Jump to the beginning of the program
+    c16memory_writeToMemory(data, i++, MOV_LIT_REG);
+    c16memory_writeToMemory(data, i++, 0x00);
+    c16memory_writeToMemory(data, i++, 0x00);
+    c16memory_writeToMemory(data, i++, IP);
 
-    c16memmap_setUint8(mapper, i++, MOV_LIT_REG);
-    c16memmap_setUint8(mapper, i++, 0x56);
-    c16memmap_setUint8(mapper, i++, 0x78);
-    c16memmap_setUint8(mapper, i++, R4);
+    i = waitSubroutineAddress;
 
-    c16memmap_setUint8(mapper, i++, PSH_LIT);
-    c16memmap_setUint8(mapper, i++, 0x00);
-    c16memmap_setUint8(mapper, i++, 0x00);
+    // R1 is a constant 1, which we add to the accumulator
+    c16memory_writeToMemory(data, i++, MOV_LIT_REG);
+    c16memory_writeToMemory(data, i++, 0x00);
+    c16memory_writeToMemory(data, i++, 0x01);
+    c16memory_writeToMemory(data, i++, R1);
 
-    c16memmap_setUint8(mapper, i++, CAL_LIT);
-    c16memmap_setUint8(mapper, i++, (subroutineAddress & 0xff00) >> 8);
-    c16memmap_setUint8(mapper, i++, subroutineAddress & 0x00ff);
+    // Acc starts at zero
+    c16memory_writeToMemory(data, i++, MOV_LIT_REG);
+    c16memory_writeToMemory(data, i++, 0x00);
+    c16memory_writeToMemory(data, i++, 0x00);
+    c16memory_writeToMemory(data, i++, ACC);
 
-    c16memmap_setUint8(mapper, i++, PSH_LIT);
-    c16memmap_setUint8(mapper, i++, 0x44);
-    c16memmap_setUint8(mapper, i++, 0x44);
+    size_t loopStart = i;
 
-    i = subroutineAddress;
+    // Add R1 to Acc
+    c16memory_writeToMemory(data, i++, ADD_REG_REG);
+    c16memory_writeToMemory(data, i++, ACC);
+    c16memory_writeToMemory(data, i++, R1);
 
-    c16memmap_setUint8(mapper, i++, PSH_LIT);
-    c16memmap_setUint8(mapper, i++, 0x01);
-    c16memmap_setUint8(mapper, i++, 0x02);
+    // if (Acc != 0xccff) jump to the start of the loop
+    c16memory_writeToMemory(data, i++, JMP_NOT_EQ);
+    c16memory_writeToMemory(data, i++, 0xff);
+    c16memory_writeToMemory(data, i++, 0xff);
+    c16memory_writeToMemory(data, i++, (loopStart & 0xff00) >> 8);
+    c16memory_writeToMemory(data, i++, (loopStart & 0x00ff));
 
-    c16memmap_setUint8(mapper, i++, PSH_LIT);
-    c16memmap_setUint8(mapper, i++, 0x03);
-    c16memmap_setUint8(mapper, i++, 0x04);
+    // return from subroutine
+    c16memory_writeToMemory(data, i++, RET);
 
-    c16memmap_setUint8(mapper, i++, PSH_LIT);
-    c16memmap_setUint8(mapper, i++, 0x05);
-    c16memmap_setUint8(mapper, i++, 0x06);
+    // end of program
+    // c16cpu_debug(cpu);
+    // c16cpu_viewMemoryAt(cpu, c16cpu_getRegister(cpu, "IP"), 8);
+    // c16cpu_viewMemoryAt(cpu, 0xffff - 1 - 42, 44);
 
-    c16memmap_setUint8(mapper, i++, MOV_LIT_REG);
-    c16memmap_setUint8(mapper, i++, 0x07);
-    c16memmap_setUint8(mapper, i++, 0x08);
-    c16memmap_setUint8(mapper, i++, R1);
-
-    c16memmap_setUint8(mapper, i++, MOV_LIT_REG);
-    c16memmap_setUint8(mapper, i++, 0x09);
-    c16memmap_setUint8(mapper, i++, 0x0A);
-    c16memmap_setUint8(mapper, i++, R8);
-
-    c16memmap_setUint8(mapper, i++, RET);
-
-    c16cpu_debug(cpu);
-    c16cpu_viewMemoryAt(cpu, c16cpu_getRegister(cpu, "IP"), 8);
-    c16cpu_viewMemoryAt(cpu, 0xffff-1-42, 44);
-
-    c16cpu_attachDebugger(cpu, debugCallback);
-
-    c16cpu_destroy(cpu);
-
-
-
+    c16cpu_run(cpu);
+    // c16cpu_attachDebugger(cpu, debugCallback);
 
     return 0;
 }

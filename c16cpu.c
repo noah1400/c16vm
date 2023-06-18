@@ -303,7 +303,6 @@ void c16cpu_viewMemoryAt(c16cpu_t *cpu, uint16_t offset, uint16_t size)
 
 int c16cpu_step(c16cpu_t *cpu)
 {
-    printf("IP: 0x%04x\n", c16cpu_getRegister(cpu, "IP"));
     uint8_t opcode = c16cpu_fetch(cpu);
     return c16cpu_execute(opcode, cpu);
 }
