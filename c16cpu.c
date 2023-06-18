@@ -207,8 +207,8 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
     {
         uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);;
         uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);;
-        uint16_t r1Value = c16memory_getUint16(cpu->registers, r1 * sizeof(uint16_t));
-        uint16_t r2Value = c16memory_getUint16(cpu->registers, r2 * sizeof(uint16_t));
+        uint16_t r1Value = c16memory_getUint16(cpu->registers, r1);
+        uint16_t r2Value = c16memory_getUint16(cpu->registers, r2);
         uint16_t result = r1Value + r2Value;
         c16cpu_setRegister(cpu, "ACC", result);
     }
@@ -267,8 +267,6 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         
     case NOP:
     {
-        uint8_t unused = c16cpu_fetch(cpu);
-        (void)unused;
         return NOP;
     }
     case HLT:
@@ -277,7 +275,7 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
     }
     }
 
-    printf("Error: Unknown opcode: %d\n", opcode);
+    printf("Error: Unknown opcode: 0x%02x\n", opcode);
     exit(EXIT_FAILURE);
 }
 
