@@ -31,7 +31,11 @@ Compiling: `gcc -o c16vm c16memory.c c16cpu.c c16memmap.c c16screen.c c16vm.c -I
 ## Registers
 
 `IP`: Instruction Pointer (Index: `0x00`)
+
 `ACC`: Accumulator (Index: `0x01`)
+
 `R1` - `R8`: General usage registers (Index: `0x02` - `0x09`)
+
 `SP`: Stack Pointer (Index: `0x0A`)
+
 `FP`: Stack frame pointer (Index: `0x0B`)
