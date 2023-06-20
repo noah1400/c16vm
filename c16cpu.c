@@ -226,7 +226,7 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         uint16_t baseAddress = c16cpu_fetch16(cpu);
         uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
         uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t offset = c16cpu_memmap_getUint16(cpu->memory, r1);
+        uint16_t offset = c16memmap_getUint16(cpu->memory, r1);
 
         uint16_t value = c16memmap_getUint16(cpu->memory, baseAddress + offset);
         c16memory_setUint16(cpu->registers, r2, value);
