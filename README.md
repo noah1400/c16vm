@@ -2,10 +2,12 @@
 
  16-bit Virtual Machine implemented in c
 
+ Uses the mpc (Micro Parser Combinators) Library
+
 ## Build
 
 ```txt
-gcc -o c16vm c16memory.c c16cpu.c c16memmap.c c16screen.c c16vm.c -Iinclude -Wall -Werror -Wpedantic
+gcc -o c16vm c16memory.c c16cpu.c c16memmap.c c16screen.c mpc.c c16vm.c -Iinclude -Wall -Werror -Wpedantic
 ```
 
 ## Instruction Set
