@@ -205,6 +205,33 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         c16memory_setUint16(cpu->registers, registerTo, value);
     }
         return MOV_MEM_REG;
+    case MOV_LIT_MEM:
+    {
+        uint16_t value = c16cpu_fetch16(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+        c16memmap_setUint16(cpu->memory, address, value);
+    }
+        return MOV_LIT_MEM;
+    case MOV_REG_PTR_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t ptr = c16memory_getUint16(cpu->registers, r1);
+        uint16_t value = c16memmap_getUint16(cpu->memory, ptr);
+        c16memory_setUint16(cpu->registers, r2, value);
+    }
+        return MOV_REG_PTR_REG;
+    case MOV_LIT_OFF_REG:
+    {
+        uint16_t baseAddress = c16cpu_fetch16(cpu);
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t offset = c16cpu_memmap_getUint16(cpu->memory, r1);
+
+        uint16_t value = c16memmap_getUint16(cpu->memory, baseAddress + offset);
+        c16memory_setUint16(cpu->registers, r2, value);
+    }
+        return MOV_LIT_OFF_REG;
     case ADD_REG_REG:
     {
         uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);;
@@ -215,6 +242,177 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
         c16cpu_setRegister(cpu, "ACC", result);
     }
         return ADD_REG_REG;
+    case ADD_LIT_REG:
+    {
+        uint16_t literal = c16cpu_fetch16(cpu);
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+        c16cpu_setRegister(cpu, "ACC", literal + registerValue);
+    }
+        return ADD_LIT_REG;
+    case SUB_LIT_REG:
+    {
+        uint16_t literal = c16cpu_fetch16(cpu);
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t result = registerValue - literal;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return SUB_LIT_REG;
+    case SUB_REG_LIT:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t literal = c16cpu_fetch16(cpu);
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t result = literal - registerValue;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return SUB_REG_LIT;
+    case SUB_REG_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+        uint16_t result = registerValue1 - registerValue2;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return SUB_REG_REG;
+    case MUL_LIT_REG:
+    {
+        uint16_t literal = c16cpu_fetch16(cpu);
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t result = literal * registerValue;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+    case MUL_REG_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+        uint16_t result = registerValue1 * registerValue2;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return MUL_REG_REG;
+    case INC_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t newValue = oldValue + 1;
+        c16memory_setUint16(cpu->registers, r1, newValue);
+    }
+        return INC_REG;
+    case DEC_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t newValue = oldValue - 1;
+        c16memory_setUint16(cpu->registers, r1, newValue);
+    }
+    case LSF_REG_LIT:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint8_t literal = c16cpu_fetch(cpu);
+        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t newValue = oldValue << literal;
+        c16memory_setUint16(cpu->registers, r1, newValue);
+    }
+        return LSF_REG_LIT;
+    case LSF_REG_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t shiftBy = c16memory_getUint16(cpu->registers, r2);
+        uint16_t newValue = oldValue << shiftBy;
+        c16memory_setUint16(cpu->registers, r1, newValue);
+    }
+        return LSF_REG_REG;
+    case RSF_REG_LIT:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint8_t literal = c16cpu_fetch(cpu);
+        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t newValue = oldValue >> literal;
+        c16memory_setUint16(cpu->registers, r1, newValue);
+    }
+        return RSF_REG_LIT;
+    case RSF_REG_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t shiftBy = c16memory_getUint16(cpu->registers, r2);
+        uint16_t newValue = oldValue >> shiftBy;
+        c16memory_setUint16(cpu->registers, r1, newValue);
+    }
+    case AND_REG_LIT:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t literal = c16cpu_fetch16(cpu);
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t result = registerValue & literal;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return AND_REG_LIT;
+    case AND_REG_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+        uint16_t result = registerValue1 & registerValue2;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return AND_REG_REG;
+    case OR_REG_LIT:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t literal = c16cpu_fetch16(cpu);
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t result = registerValue | literal;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return OR_REG_LIT;
+    case OR_REG_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+        uint16_t result = registerValue1 | registerValue2;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return OR_REG_REG;
+    case XOR_REG_LIT:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t literal = c16cpu_fetch16(cpu);
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t result = registerValue ^ literal;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return XOR_REG_LIT;
+    case XOR_REG_REG:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+        uint16_t result = registerValue1 ^ registerValue2;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return XOR_REG_REG;
+    case NOT:
+    {
+        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+        uint16_t result = (~registerValue) & 0xFFFF;
+        c16cpu_setRegister(cpu, "ACC", result);
+    }
+        return NOT;
     case JMP_NOT_EQ:
     {
         uint16_t value = c16cpu_fetch16(cpu);
@@ -222,14 +420,160 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
 
         uint16_t acc = c16cpu_getRegister(cpu, "ACC");
 
-        // printf("JMP_NOT_EQ: %d != %d\n", value, acc);
-
         if (value != acc)
         {
             c16cpu_setRegister(cpu, "IP", address);
         }
     }
         return JMP_NOT_EQ;
+    case JNE_REG:
+    {
+        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
+
+        if (registerValue != acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JNE_REG;
+    case JEQ_LIT:
+    {
+        uint16_t value = c16cpu_fetch16(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+
+        if (value == acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JEQ_LIT;
+    case JEQ_REG:
+    {
+        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
+
+        if (registerValue == acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JEQ_REG;
+    case JLT_LIT:
+    {
+        uint16_t value = c16cpu_fetch16(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+
+        if (value < acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JLT_LIT;
+    case JLT_REG:
+    {
+        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
+
+        if (registerValue < acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JLT_REG;
+    case JGT_LIT:
+    {
+        uint16_t value = c16cpu_fetch16(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+
+        if (value > acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JGT_LIT;
+    case JGT_REG:
+    {
+        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
+
+        if (registerValue > acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JGT_REG;
+    case JLE_LIT:
+    {
+        uint16_t value = c16cpu_fetch16(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+
+        if (value <= acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JLE_LIT;
+    case JLE_REG:
+    {
+        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
+
+        if (registerValue <= acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JLE_REG;
+    case JGE_LIT:
+    {
+        uint16_t value = c16cpu_fetch16(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+
+        if (value >= acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+    case JGE_REG:
+    {
+        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
+        uint16_t address = c16cpu_fetch16(cpu);
+
+        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
+        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
+
+        if (registerValue >= acc)
+        {
+            c16cpu_setRegister(cpu, "IP", address);
+        }
+    }
+        return JGE_REG;
     case PSH_LIT:
     {
         uint16_t value = c16cpu_fetch16(cpu);
