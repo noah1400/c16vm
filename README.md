@@ -5,7 +5,13 @@
 ## Build
 
 ```txt
-gcc -o c16vm c16memory.c c16cpu.c c16memmap.c c16screen.c c16vm.c -Iinclude -Wall -Werror -Wpedantic
+gcc -o c16vm c16memory.c c16cpu.c c16memmap.c c16screen.c c16meta.c c16vm.c -Iinclude -Wall -Werror -Wpedantic
+```
+
+Test ( Currently only testing function meta data )
+
+```txt
+gcc -g -o c16test c16memory.c c16cpu.c c16memmap.c c16screen.c c16meta.c c16test.c -Iinclude -Wall -Werror -Wpedantic
 ```
 
 ## Instruction Set
