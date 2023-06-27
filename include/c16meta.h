@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <c16instructions.h>
-#include <stdio.h>
 
 #define c16meta_instrCount 47
 
