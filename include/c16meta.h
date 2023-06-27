@@ -2,8 +2,12 @@
 #define _c16meta_h
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <c16instructions.h>
+#include <stdio.h>
 
-#define c16meta_instrCount 48
+#define c16meta_instrCount 47
 
 // Instruction Types
 #define c16instrType_litReg     0
@@ -34,16 +38,17 @@
 #define c16instrSize_singleLit 3
 
 typedef struct {
-    int instruction;
-    uint16_t opcode;
+    char instruction[16];
+    uint8_t opcode;
     int type;
     int size;
     char mnemonic[4]; // 3 chars + null terminator
 } c16instrMeta;
 
-extern c16instrMeta c16instrMetaTable[c16meta_instrCount];
-
-void c16meta_init(); // fills c16instrMetaTable
-c16instrMeta* c16meta_get(int instruction);
+c16instrMeta **c16meta_init(); // fills c16instrMetaTable
+void c16meta_free(c16instrMeta **instrMetaTable); // frees c16instrMetaTable
+void c16meta_sort(c16instrMeta **c16instrMetaTable);
+int c16meta_compare(const void *a, const void *b);
+c16instrMeta* c16meta_get(c16instrMeta **c16instrMetaTable, uint8_t opcode);
 
 #endif
