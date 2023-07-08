@@ -1,26 +1,10 @@
 #include <c16parser.h>
 
 
-int main(void)
+int main(int argc, char** argv)
 {
-    char *input = "$fff";
-    
-    c16parser_node *anchor = NULL;
-    mpc_result_t *r = malloc(sizeof(mpc_result_t));
-    mpc_parser_t *test = mpc_new("test");
-    mpc_parser_t *parser = _c16parser_hexLiteral(&anchor);
-    mpc_define(test, parser);
+    char* input = "constant  ad =$ff \n +structure rectangle { x:$00, y:$00, width:$ff, height:$ff }";
 
-    if (mpc_parse("test", input, test, r))
-    {
-        printf("Parsed: %s\n", r->output);
-        mpc_ast_print(r->output);
-        mpc_ast_delete(r->output);
-    }
-    else
-    {
-        printf("Failed to parse\n");
-        mpc_err_print(r->error);
-        mpc_err_delete(r->error);
-    }
+    // parse the input
+    mpc_result_t* result = c16parser_parse(input);
 }
