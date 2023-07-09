@@ -15,6 +15,7 @@ mpc_result_t *c16parser_parse(const char *input)
     // helpers
     mpc_parser_t *isExport = mpc_new("isExport");
     mpc_parser_t *ident = mpc_new("ident");
+    c16parser_ident(&ident);
     mpc_parser_t *hex = mpc_new("hex");
     mpc_parser_t *hexLiteral = mpc_new("hexLiteral");
     mpc_parser_t *commaSepHexLits = mpc_new("commaSepHexLits");
@@ -23,7 +24,6 @@ mpc_result_t *c16parser_parse(const char *input)
 
     mpc_err_t *err = mpca_lang(MPCA_LANG_DEFAULT,
                                "isExport : '+' ;"
-                               "ident : /[a-zA-Z_][a-zA-Z0-9_]*/ ;"
                                "hex : /[0-9a-fA-F]/ ;"
                                "hexLiteral : '$'<hex>+ ;"
                                "commaSepHexLits : <hexLiteral>/\\s*/(','<hexLiteral>)* ;"
@@ -66,4 +66,31 @@ mpc_result_t *c16parser_parse(const char *input)
                 data, data8, data16, constant, structure, instruction, label, c16parser);
 
     return NULL;
+}
+
+void c16parser_interpretAs(mpc_parser_t **parser, mpc_parser_t **ident)
+{
+
+    mpc_err_t *err = mpca_lang(MPCA_LANG_DEFAULT,
+              "interpretAs : '<' <ident> '>' <ident> '.' <ident> ;",
+              *parser, *ident, NULL);
+
+    if (err != NULL)
+    {
+        mpc_err_print(err);
+        mpc_err_delete(err);
+    }
+}
+
+void c16parser_ident(mpc_parser_t **parser)
+{
+    mpc_err_t *err = mpca_lang(MPCA_LANG_DEFAULT,
+              "ident : /[a-zA-Z_][a-zA-Z0-9_]*/ ;",
+              *parser, NULL);
+
+    if (err != NULL)
+    {
+        mpc_err_print(err);
+        mpc_err_delete(err);
+    }
 }
