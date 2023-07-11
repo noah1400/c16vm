@@ -30,27 +30,27 @@ void *c16memory_createMemory(size_t sizeInBytes)
     return buffer;
 }
 
-uint16_t c16memory_getUint16(void *memory, uint16_t offset)
+uint16_t c16memory_getUint16(void *memory, uint16_t offset, ...)
 {
     uint8_t *bytes = (uint8_t *)memory;
     uint16_t value = (bytes[offset] << 8) | bytes[offset + 1];
     return value;
 }
 
-void c16memory_setUint16(void *memory, uint16_t offset, uint16_t value)
+void c16memory_setUint16(void *memory, uint16_t offset, uint16_t value, ...)
 {
     uint8_t *bytes = (uint8_t *)memory;
     bytes[offset] = (value >> 8) & 0xFF;
     bytes[offset + 1] = value & 0xFF;
 }
 
-void c16memory_setUint8(void *memory, uint16_t offset, uint8_t value)
+void c16memory_setUint8(void *memory, uint16_t offset, uint8_t value, ...)
 {
     uint8_t *bytes = (uint8_t *)memory;
     bytes[offset] = value;
 }
 
-uint8_t c16memory_getUint8(void *memory, uint16_t offset)
+uint8_t c16memory_getUint8(void *memory, uint16_t offset, ...)
 {
     uint8_t *bytes = (uint8_t *)memory;
     uint8_t value = bytes[offset];

@@ -23,6 +23,8 @@ typedef struct
     void *registers;
     char *regNames[REG_COUNT];
     size_t stackFrameSize;
+    uint16_t interuptVectorAddress;
+    char isInInteruptHandler;
 } c16cpu_t;
 
 typedef enum
@@ -57,6 +59,8 @@ void c16cpu_pushState(c16cpu_t *cpu);
 void c16cpu_popState(c16cpu_t *cpu);
 
 size_t c16cpu_fetchRegisterIndex(c16cpu_t *cpu);
+
+void c16cpu_handleInterupt(c16cpu_t *cpu, uint16_t value);
 
 int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu);
 void c16cpu_run(c16cpu_t *cpu);

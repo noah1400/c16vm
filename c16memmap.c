@@ -109,4 +109,10 @@ void c16memmap_setUint8(C16MemoryMap *map, uint16_t address, uint8_t value)
     region->device->setUint8(region->device->data, finalAddress, value);
 }
 
-
+void c16memmap_load(C16MemoryMap *map, uint16_t startAdress, uint8_t *data, size_t length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        c16memmap_setUint8(map, startAdress + i, data[i]);
+    }
+}
