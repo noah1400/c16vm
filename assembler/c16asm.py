@@ -421,11 +421,10 @@ register_map = {reg_name: index for index, reg_name in enumerate(registers)}
 def upperOrLower(string):
     return p.string(string.upper()) | p.string(string.lower())
 
+@p.generate
 def registerParser():
-    reg = upperOrLower("IP")
-    for reg_name in registers[1:]:
-        reg = reg | upperOrLower(reg_name)
-    return reg.map(register)
+    reg = yield (upperOrLower("IP") | upperOrLower("ACC") | upperOrLower("R1") | upperOrLower("R2") | upperOrLower("R3") | upperOrLower("R4") | upperOrLower("R5") | upperOrLower("R6") | upperOrLower("R7") | upperOrLower("R8") | upperOrLower("SP") | upperOrLower("FP") | upperOrLower("MB") | upperOrLower("IM")).map(lambda x: register(x.upper()))
+    return reg
 
 hexDigitParser = p.regex("[0-9a-fA-F]")
 hexLiteralParser = (p.string("$") >> map_join(hexDigitParser.at_least(1))).map(hexLiteral)
@@ -515,7 +514,7 @@ def interpretAsParser():
 
 # expression parsers
 
-expressionElementParser = (interpretAsParser() | hexLiteralParser | variableParser )
+expressionElementParser = (interpretAsParser | hexLiteralParser | variableParser )
 
 def typifyBracketedExpr(expr):
     return bracketedExpression(expr.map(lambda x: typifyBracketedExpr(x) if isinstance(x, list) else x))
@@ -632,7 +631,7 @@ def squareBracketExprParserWrapper():
 
     while True:
         if state == EXPECT_ELEMENT:
-            result = yield (bracketedExprParser() | expressionElementParser)
+            result = yield (bracketedExprParser | expressionElementParser)
             expr.append(result)
             state = EXPECT_OPERATOR
             yield p.regex("\s*")
@@ -654,10 +653,183 @@ def squareBracketExprParserWrapper():
 
 @p.generate
 def squareBracketExprParser():
-    return squareBracketExprParserWrapper().map(disambiguateOrderOfOperations)
+    expr = yield squareBracketExprParserWrapper.map(disambiguateOrderOfOperations)
+    return expr
+
+# structure parsers
+
+@p.generate
+def keyValuePairParser():
+    yield p.regex("\s*")
+    key = yield validIdentifierParser
+    yield p.regex("\s*")
+    yield p.string(":")
+    yield p.regex("\s*")
+    value = yield hexLiteralParser
+    yield p.regex("\s*")
+
+    return {'key': key, 'value': value}
+
+@p.generate
+def structureParser():
+    isExport = yield p.string("+").optional().map(lambda x: x is not None)
+    yield p.string("structure")
+    yield p.regex("\s+")
+    name = yield validIdentifierParser
+    yield p.regex("\s*")
+    yield p.string("{")
+    yield p.regex("\s*")
+    members = yield commaSeparated(keyValuePairParser)
+    yield p.regex("\s*")
+    yield p.string("}")
+    yield p.regex("\s*")
+
+    return structure({'isExport': isExport, 'name': name, 'members': members})
+
+# instruction parsers
+
+def litReg(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        arg1 = yield p.alt(hexLiteralParser, squareBracketExprParser)
+        yield p.regex("\s*,\s*")
+        arg2 = yield registerParser
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [arg1, arg2]})
+    return  parser
+def regLit(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        r1 = yield registerParser
+        yield p.regex("\s*,\s*")
+        lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [r1, lit]})
+    return parser
+def regLit8(mnemonic, type):
+    regLit(mnemonic, type)
+def regReg(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        r1 = yield registerParser
+        yield p.regex("\s*,\s*")
+        r2 = yield registerParser
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [r1, r2]})
+    return parser
+def regMem(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        r1 = yield registerParser
+        yield p.regex("\s*,\s*")
+        addr = yield p.alt(addressParser, p.string("&").then(squareBracketExprParser))
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [r1, addr]})
+    return parser
+def memReg(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        addr = yield p.alt(addressParser, p.string("&").then(squareBracketExprParser))
+        yield p.regex("\s*,\s*")
+        r1 = yield registerParser
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [addr, r1]})
+    return parser
+def litMem(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
+        yield p.regex("\s*,\s*")
+        addr = yield p.alt(addressParser, p.string("&").then(squareBracketExprParser))
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [lit, addr]})
+    return parser
+def regPtrReg(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        r1 = yield p.string("&").then(registerParser)
+        yield p.regex("\s*,\s*")
+        r2 = yield registerParser
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [r1, r2]})
+    return parser
+def litOffReg(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
+        yield p.regex("\s*,\s*")
+        r1 = yield p.string("&").then(registerParser)
+        yield p.regex("\s*,\s*")
+        r2 = yield registerParser
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [lit, r1, r2]})
+    return parser
+def noArgs(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': []})
+    return parser
+def singleReg(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        r1 = yield registerParser
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [r1]})
+    return parser
+def singleLit(mnemonic, type):
+    @p.generate
+    def parser():
+        yield upperOrLower(mnemonic)
+        yield p.regex("\s+")
+        lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
+        yield p.regex("\s*")
+        return instruction({'instruction': type, 'args': [lit]})
+    return parser
+
+type_formats ={value: globals()[type] for type, value in instructionTypes.items()}
+
+all_instructions = []
+for instr in meta:
+    if instr['type'] not in type_formats:
+        raise Exception("Unknown instruction type: " + instr['type'])
+    # Call the parser factory to create a parser.
+    parser = type_formats[instr['type']](instr['mnemonic'], instr['instruction'])
+    all_instructions.append(parser)
+
+@p.generate
+def instructionParser():
+    yield p.regex("\s*")
+    instr = yield p.alt(*all_instructions)
+    yield p.regex("\s*")
+    return instr
+
+
 
 def main():
-    pass
+    code = "mov &[ <Rectangle> myRectangle.y ], r1"
+    print(code)
+    print(instructionParser.parse(code))
+
 
 
 if __name__ == '__main__':
