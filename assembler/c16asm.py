@@ -438,6 +438,224 @@ operatorParser = (p.string("+").map(opPlus) | p.string("-").map(opMinus) | p.str
 peekParser = p.peek(p.any_char)
 
 
+def optionalWhitespaceSurrounded(parser):
+    return p.regex("\s*").then(parser).skip(p.regex("\s*"))
+
+def commaSeparated(parser):
+    return optionalWhitespaceSurrounded(parser).sep_by(p.string(","))
+
+
+# constant parsers
+
+@p.generate
+def constantParser():
+    isExport = yield p.string("+").optional().map(lambda x: x is not None)
+    yield p.string("constant")
+    yield p.regex("\s+")
+    name = yield validIdentifierParser
+    yield p.regex("\s+")
+    yield p.string("=")
+    yield p.regex("\s+")
+    value = yield hexLiteralParser
+    yield p.regex("\s*")
+    return constant({'isExport': isExport, 'name': name, 'value': value})
+
+# data parsers
+
+@p.generate
+def data8Parser():
+    isExport = yield p.string("+").optional().map(lambda x: x is not None)
+    yield p.string("data8")
+    yield p.regex("\s+")
+    name = yield validIdentifierParser
+    yield p.regex("\s+")
+    yield p.string("=")
+    yield p.regex("\s+")
+    yield p.string("{")
+    yield p.regex("\s*")
+    values = yield commaSeparated(hexLiteralParser)
+    yield p.regex("\s*")
+    yield p.string("}")
+    yield p.regex("\s*")
+
+    return data({'size': 8, 'isExport': isExport, 'name': name, 'values': values})
+
+@p.generate
+def data16Parser():
+    isExport = yield p.string("+").optional().map(lambda x: x is not None)
+    yield p.string("data16")
+    yield p.regex("\s+")
+    name = yield validIdentifierParser
+    yield p.regex("\s+")
+    yield p.string("=")
+    yield p.regex("\s+")
+    yield p.string("{")
+    yield p.regex("\s*")
+    values = yield commaSeparated(hexLiteralParser)
+    yield p.regex("\s*")
+    yield p.string("}")
+    yield p.regex("\s*")
+
+    return data({'size': 16, 'isExport': isExport, 'name': name, 'values': values})
+
+# interpret as parser
+
+@p.generate
+def interpretAsParser():
+    yield p.string("<")
+    structure = yield validIdentifierParser
+    yield p.string(">")
+    yield p.regex("\s*")
+    symbol = yield validIdentifierParser
+    yield p.string(".")
+    prop = yield validIdentifierParser
+    yield p.regex("\s*")
+
+    return interpretAs({'structure': structure, 'symbol': symbol, 'property': prop})
+
+# expression parsers
+
+expressionElementParser = (interpretAsParser() | hexLiteralParser | variableParser )
+
+def typifyBracketedExpr(expr):
+    return bracketedExpression(expr.map(lambda x: typifyBracketedExpr(x) if isinstance(x, list) else x))
+
+@p.generate
+def disambiguateOrderOfOperations(expr):
+    if expr['type'] != 'SQUARE_BRACKET_EXPRESSION' and expr['type'] != 'BRACKETED_EXPRESSION':
+        return expr
+    
+    if len(expr['value']) == 1:
+        return expr['value'][0]
+    
+    priorities = {
+        'OP_MULTIPLY': 2,
+        'OP_PLUS': 1,
+        'OP_MINUS': 0
+    }
+    candidateExpression = {
+        'priority': -1,
+    }
+    for i in range(1, len(expr['value']), 2):
+        level = priorities[expr['value'][i]['type']]
+        if level > candidateExpression['priority']:
+            candidateExpression = {
+                'priority': level,
+                'a': i-1,
+                'b': i+1,
+                'op': expr['value'][i]
+            }
+
+    li = candidateExpression['a']
+    ri = candidateExpression['b']
+    newExpression = bracketedExpression([
+        *expr['value'][:li],
+        binaryOperation({
+            'a': disambiguateOrderOfOperations(expr['value'][li]),
+            'b': disambiguateOrderOfOperations(expr['value'][ri]),
+            'op': candidateExpression['op']
+        }),
+        *expr['value'][ri+1:]
+    ])
+
+    return disambiguateOrderOfOperations(newExpression)
+
+@p.generate
+def bracketedExprParser():
+    # states:
+    OPEN_BRACKET = 0
+    OPERATOR_OR_CLOSING_BRACKET = 1
+    ELEMENT_OR_OPENING_BRACKET = 2
+    CLOSE_BRACKET = 3
+
+    state = ELEMENT_OR_OPENING_BRACKET
+
+    expr = []
+    stack = [expr]
+    yield p.string("(")
+
+    while True:
+        nextChar = yield peekParser
+        
+        if state == OPEN_BRACKET:
+            yield p.string("(")
+            expr.append([])
+            stack.append(expr[-1])
+            yield p.regex("\s*")
+            state = ELEMENT_OR_OPENING_BRACKET
+        elif state == CLOSE_BRACKET:
+            yield p.string(")")
+            stack.pop()
+            if len(stack) == 0:
+                # we're done
+                break
+
+            yield p.regex("\s*")
+            state = OPERATOR_OR_CLOSING_BRACKET
+        elif state == ELEMENT_OR_OPENING_BRACKET:
+            if nextChar == ")":
+                yield p.fail("Unexpected end of expression")
+
+            if nextChar == "(":
+                state = OPEN_BRACKET
+            else:
+                exprElement = yield expressionElementParser
+                stack[-1].append(exprElement)
+                yield p.regex("\s*")
+                state = OPERATOR_OR_CLOSING_BRACKET   
+        elif state == OPERATOR_OR_CLOSING_BRACKET:
+            if nextChar == ")":
+                state = CLOSE_BRACKET
+                continue
+            
+            o = yield operatorParser
+            stack[-1].append(o)
+            yield p.regex("\s*")
+            state = ELEMENT_OR_OPENING_BRACKET
+        else:
+            # should never happen
+            raise Exception("Unknown state")
+    
+    return typifyBracketedExpr(expr)
+
+@p.generate
+def squareBracketExprParserWrapper():
+
+    yield p.string("[")
+    yield p.regex("\s*")
+
+    # states:
+    EXPECT_ELEMENT = 0
+    EXPECT_OPERATOR = 1
+    expr = []
+    state = EXPECT_ELEMENT
+
+    while True:
+        if state == EXPECT_ELEMENT:
+            result = yield (bracketedExprParser() | expressionElementParser)
+            expr.append(result)
+            state = EXPECT_OPERATOR
+            yield p.regex("\s*")
+        elif state == EXPECT_OPERATOR:
+            nextChar = yield peekParser
+            if nextChar == "]":
+                yield p.string("]")
+                yield p.regex("\s*")
+                break
+
+            result = yield operatorParser
+            expr.append(result)
+            state = EXPECT_ELEMENT
+            yield p.regex("\s*")
+        else:
+            # should never happen
+            raise Exception("Unknown state")
+    return squareBracketExpression(expr)
+
+@p.generate
+def squareBracketExprParser():
+    return squareBracketExprParserWrapper().map(disambiguateOrderOfOperations)
+
 def main():
     pass
 
