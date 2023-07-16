@@ -37,7 +37,7 @@ void _c16screen_setRegular()
     printf("\x1b[0m");
 }
 
-uint16_t _c16screen_getUint16(void *memory, uint16_t address)
+uint16_t _c16screen_getUint16(void *memory, uint16_t address, ...)
 {
     (void)memory;
     (void)address;

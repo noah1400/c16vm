@@ -7,10 +7,10 @@
 
 typedef struct MemoryAccessDevice {
     void *data; // Pointer to device data - can be NULL if not needed (e.g. Screen)
-    uint8_t (*getUint8)(void *data, uint16_t address, ...);
-    void (*setUint8)(void *data, uint16_t address, uint8_t value, ...);
-    uint16_t (*getUint16)(void *data, uint16_t address, ...);
-    void (*setUint16)(void *data, uint16_t address, uint16_t value, ...);
+    uint8_t (*getUint8)(void *data, uint16_t address);
+    void (*setUint8)(void *data, uint16_t address, uint8_t value);
+    uint16_t (*getUint16)(void *data, uint16_t address);
+    void (*setUint16)(void *data, uint16_t address, uint16_t value);
 } C16MemoryAccessDevice;
 
 typedef struct MemoryMapRegion {

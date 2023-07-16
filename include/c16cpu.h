@@ -2,6 +2,7 @@
 #define _c16cpu_h_
 
 #include <string.h>
+#include <stdint.h>
 #include <c16memory.h>
 #include <stdlib.h>
 #include <c16instructions.h>
@@ -17,7 +18,7 @@
 
 
 
-typedef struct
+typedef struct _c16cpu_t
 {
     C16MemoryMap *memory;
     void *registers;
@@ -41,7 +42,7 @@ typedef enum
     R8 = 9
 } reg_t;
 
-c16cpu_t *c16cpu_create(C16MemoryMap *memoryMap);
+c16cpu_t *c16cpu_create(C16MemoryMap *memoryMap, uint16_t interuptVectorAddress);
 
 int c16cpu_mapRegisterToOffset(c16cpu_t *cpu, char *regName);
 reg_t c16cpu_mapRegisterToEnum(c16cpu_t *cpu, char *regName);

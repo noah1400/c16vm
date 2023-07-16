@@ -1,6 +1,8 @@
 #ifndef _c16instructions_h_
 #define _c16instructions_h_
 
+#include <stdint.h>
+
 #define RET_INT         (uint8_t) 0xFC
 #define INT             (uint8_t) 0xFD
 #define MOV_LIT_REG     (uint8_t) 0x10    

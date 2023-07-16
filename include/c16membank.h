@@ -3,8 +3,15 @@
 
 #include <c16memmap.h>
 #include <c16cpu.h>
+#include <stdint.h>
+
+extern c16cpu_t **c16membank_cpu;
+extern int c16membank_bankCount;
+extern int c16membank_bankSize;
 
 C16MemoryAccessDevice *c16membank_createDevice(size_t n, size_t bankSize, c16cpu_t *cpu);
+
+uint16_t _c16membank_getActualAddress(uint16_t address);
 
 uint16_t _c16membank_getUint16(void *memory, uint16_t address);
 void _c16membank_setUint16(void *memory, uint16_t address, uint16_t value);
