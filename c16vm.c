@@ -4,20 +4,35 @@
 #include <c16screen.h>
 #include <c16memmap.h>
 #include <c16membank.h>
+#include <c16instructions.h>
+
+void debug(c16cpu_t *cpu)
+{
+    c16cpu_debug(cpu);
+    c16cpu_viewMemoryAt(cpu, 0xffff - 31, 16);
+    c16cpu_viewMemoryAt(cpu, 0xffff - 15, 16);
+    int opcode = c16cpu_step(cpu);
+    if (opcode == HLT) {
+        printf("HLT\n");
+        exit(0);
+    }
+}
 
 int main(void)
 {
     const int bankSize = 0xff;
     const int nBanks = 8;
+    const uint16_t interruptVector = 0x1000;
     C16MemoryMap *mapper = c16memmap_createMemoryMap();
-    c16cpu_t *cpu = c16cpu_create(mapper, 0x1000);
+    c16cpu_t *cpu = c16cpu_create(mapper, interruptVector);
     C16MemoryAccessDevice *membankDevice = c16membank_createDevice(nBanks, bankSize, cpu);
     C16MemoryAccessDevice *regularMemoryDevice = c16memory_createDevice(0xff01);
-    c16memmap_map(mapper, membankDevice, 0x0, bankSize, FALSE);
+    c16memmap_map(mapper, membankDevice, 0x0000, bankSize, FALSE);
     c16memmap_map(mapper, regularMemoryDevice, bankSize, 0xffff, TRUE);
     
-    c16memmap_setUint16(mapper, 0x1000 + 0x00, 0x2000);
-    c16memmap_setUint16(mapper, 0x1000 + 0x02, 0x3000);
+    // setup interupt vector
+    c16memmap_setUint16(mapper, interruptVector + 0x00, 0x2000);
+    c16memmap_setUint16(mapper, interruptVector + 0x02, 0x3000);
 
     c16memmap_load(mapper, 0x2000, (uint8_t[]){
         // mov $42, r1
@@ -60,9 +75,11 @@ int main(void)
         0x17, 0x00, 0x06,
         // psh $7
         0x17, 0x00, 0x07,
-    }, 30);
+        // hlt
+        0xff
+    }, 31);
 
-    c16cpu_run(cpu, 1);
+    c16cpu_attachDebugger(cpu, debug);
 
     return 0;
 }

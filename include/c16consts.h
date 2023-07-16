@@ -19,6 +19,6 @@
 #define REG_IM 13
 
 #define MEMORY_BYTES 256*256
-#define C16_CPU_SPEED 10
+#define C16_CPU_SPEED 10000
 
 #endif // _c16consts_h
