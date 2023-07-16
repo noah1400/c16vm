@@ -19,9 +19,7 @@ int main(void)
     c16memmap_setUint16(mapper, 0x1000 + 0x00, 0x2000);
     c16memmap_setUint16(mapper, 0x1000 + 0x02, 0x3000);
 
-    int data[] = {12};
-
-    c16memmap_load(mapper, 0x2000, {
+    c16memmap_load(mapper, 0x2000, (uint8_t[]){
         // mov $42, r1
         0x10, 0x00, 0x42, 0x02,
         // mov $55, r2
@@ -30,9 +28,9 @@ int main(void)
         0x14, 0x02, 0x03,
         // rti
         0xfc
-    },12);
+    }, 12);
 
-    c16memmap_load(mapper, 0x3000,  {
+    c16memmap_load(mapper, 0x3000,  (uint8_t[]){
         // mov $65, r1
         0x10, 0x00, 0x65, 0x02,
         // mov $22, r2
@@ -42,6 +40,29 @@ int main(void)
         // rti
         0xfc
     }, 12);
+
+    c16memmap_load(mapper, 0x0000, (uint8_t[]){
+        // mov $1, r1
+        0x10, 0x00, 0x01, 0x02,
+        // mov $2, r2
+        0x10, 0x00, 0x02, 0x03,
+        // mov $3, r3
+        0x10, 0x00, 0x03, 0x04,
+        // mov $4, r4
+        0x10, 0x00, 0x04, 0x05,
+        // psh $5
+        0x17, 0x00, 0x05,
+        // int $0
+        0xfd, 0x00, 0x00,
+        // pop r1
+        0x1a, 0x02,
+        // psh $6
+        0x17, 0x00, 0x06,
+        // psh $7
+        0x17, 0x00, 0x07,
+    }, 30);
+
+    c16cpu_run(cpu, 1);
 
     return 0;
 }

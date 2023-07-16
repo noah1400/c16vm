@@ -64,7 +64,7 @@ size_t c16cpu_fetchRegisterIndex(c16cpu_t *cpu);
 void c16cpu_handleInterupt(c16cpu_t *cpu, uint16_t value);
 
 int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu);
-void c16cpu_run(c16cpu_t *cpu);
+void c16cpu_run(c16cpu_t *cpu, int debug);
 
 void c16cpu_debug(c16cpu_t *cpu);
 void c16cpu_viewMemoryAt(c16cpu_t *cpu, uint16_t offset, uint16_t size);

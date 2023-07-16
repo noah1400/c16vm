@@ -1,12 +1,13 @@
 #include <c16membank.h>
 
-c16membank_cpu = NULL;
-c16membank_bankCount = 0;
-c16membank_banks = NULL;
+c16cpu_t *c16membank_cpu = NULL;
+uint16_t c16membank_bankCount = 0;
+uint16_t c16membank_bankSize = 0;
+
 
 C16MemoryAccessDevice *c16membank_createDevice(size_t n, size_t bankSize, c16cpu_t *cpu)
 {
-    c16membank_cpu = &cpu;
+    c16membank_cpu = cpu;
     c16membank_bankSize = bankSize;
     c16membank_bankCount = n;
 
@@ -17,11 +18,13 @@ C16MemoryAccessDevice *c16membank_createDevice(size_t n, size_t bankSize, c16cpu
     device->setUint8 = _c16membank_setUint8;
     device->getUint16 = _c16membank_getUint16;
     device->setUint16 = _c16membank_setUint16;
+
+    return device;
 }
 
 uint16_t _c16membank_getActualAddress(uint16_t address)
 {
-    c16cpu_t *cpu = *c16membank_cpu;
+    c16cpu_t *cpu = c16membank_cpu;
     uint16_t mb = c16cpu_getRegister(cpu, "MB");
     uint16_t index = mb % c16membank_bankCount;
     uint16_t offset = (index * c16membank_bankSize);

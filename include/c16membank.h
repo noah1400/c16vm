@@ -5,9 +5,11 @@
 #include <c16cpu.h>
 #include <stdint.h>
 
-extern c16cpu_t **c16membank_cpu;
-extern int c16membank_bankCount;
-extern int c16membank_bankSize;
+// Global variables for memory bank
+// Only used in c16membank.c
+extern c16cpu_t *c16membank_cpu;
+extern uint16_t c16membank_bankCount;
+extern uint16_t c16membank_bankSize;
 
 C16MemoryAccessDevice *c16membank_createDevice(size_t n, size_t bankSize, c16cpu_t *cpu);
 

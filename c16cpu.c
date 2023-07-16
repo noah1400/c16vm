@@ -27,13 +27,8 @@ c16cpu_t *c16cpu_create(C16MemoryMap *memory, uint16_t interuptVectorAddress)
     cpu->regNames[REG_FP] = "FP";
     cpu->regNames[REG_MB] = "MB";
     cpu->regNames[REG_IM] = "IM";
-
-    if (interuptVectorAddress == NULL)
-    {
-        cpu->interuptVectorAddress = 0x1000;
-    } else {
-        cpu->interuptVectorAddress = interuptVectorAddress;
-    }
+        
+    cpu->interuptVectorAddress = interuptVectorAddress;
     cpu->isInInteruptHandler = FALSE;
     c16cpu_setRegister(cpu, "IM", 0xffff);
 
@@ -223,13 +218,13 @@ int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
                 c16cpu_popState(cpu);
             }
             return RET_INT;
-        case INT:
+        case C16INT:
             // We're only looking at the  least significant nibble
             {
                 const uint16_t value = c16cpu_fetch16(cpu) % 0xf;
                 c16cpu_handleInterupt(cpu, value);
             }
-            return INT;
+            return C16INT;
         // Move literal into register
         case MOV_LIT_REG:
             {
@@ -785,7 +780,7 @@ void _c16cpu_sleep_ms(double ms)
     SLEEP_MS(ms);
 }
 
-void c16cpu_run(c16cpu_t *cpu)
+void c16cpu_run(c16cpu_t *cpu, int debug)
 {
 #ifdef _WIN32
     LARGE_INTEGER frequency;
@@ -807,6 +802,9 @@ void c16cpu_run(c16cpu_t *cpu)
         clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
         int opcode = c16cpu_step(cpu);
+        if (debug) {
+            c16cpu_debug(cpu);
+        }
         if (opcode == HLT)
         {
             break;
