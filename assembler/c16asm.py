@@ -890,9 +890,8 @@ def singleReg(mnemonic, type):
 def singleLit(mnemonic, type):
     @p.generate
     def parser():
-
+        yield p.whitespace
         yield upperOrLower(mnemonic)
-
         yield p.whitespace
         lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
         yield optWhite
@@ -976,7 +975,7 @@ def asm(ast):
     machineCode = []
     symbolicNames = {}
     structures = {}
-    currentAddress = 0x2000
+    currentAddress = 0x0000
 
     for node in ast:
         t = node['type']
@@ -1155,15 +1154,16 @@ structure Rectangle {
 
 start_of_code:
 
-  data16 myRectangle = { $A3, $1B, $FF, $FF10, $FF, $FF }
   
+  
+  add r1, r2
+  mov &[ <Rectangle> myRectangle.x  ], r1
 
-  mov &[ <Rectangle> myRectangle.x + $2 * $4 ], r1
-
-
+  data16 myRectangle = { $A3, $1B, $FF, $FF10 }
+    
     """
 
-    parsedOutput = parse(code.strip())
+    parsedOutput = parse(code)
     pprint.pprint(parsedOutput)
     print("\n")
     asmOutput = asm(parsedOutput)
