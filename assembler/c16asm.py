@@ -372,6 +372,14 @@ meta = [
     }
 ]
 
+def indexBy(arr, prop):
+    output = {}
+    for item in arr:
+        output[item[prop]] = item
+    return output
+
+instructions = indexBy(meta, 'instruction')
+
 # utils
 
 
@@ -865,7 +873,7 @@ def instructionParser():
 @p.generate
 def newlineParser():
 
-    res = yield p.regex("[\r\n\t\f\v]*")
+    res = yield p.regex("[\r\n\t\f\v ]*")
     if not res:
         yield p.fail("")
     return res
@@ -878,34 +886,127 @@ def c16Parser():
 
 def parse(code):
     result = []
+    orgLen = len(code)
+    parsed = 0
     while 1:
         if not code:
             break
+        try:
+            res, rem = c16Parser.parse_partial(code)
+        except Exception as e:
+            raise Exception("Error parsing at position " + str(parsed) + " of " + str(orgLen) + ":\n" + str(e))
         res, rem = c16Parser.parse_partial(code)
+        parsed += len(code) - len(rem)
         if res is None:
             break
-        if res not in [None, '', '\n']:
+        if isinstance(res, dict):
             result.append(res)
         code = rem
     return result
 
+def asm(ast):
+    machineCode = []
+    symbolicNames = {}
+    structures = {}
+    currentAddress = 0
+
+    for node in ast:
+        t = node['type']
+        if t == 'LABEL':
+            if node['value'] in symbolicNames or node['value']['name'] in structures:
+                raise Exception("Can't create label " + node['value'] + " because a binding with this name already exists.")
+            symbolicNames[node['value']] = currentAddress
+        elif t == 'STRUCTURE':
+            if node['value'] in symbolicNames or node['value']['name'] in structures:
+                raise Exception("Can't create structure " + node['value'] + " because a binding with this name already exists.")
+            structures[node['value']['name']] = {'members': {}}
+
+            offset = 0
+            for key, value in node['value']['members'].items():
+                structures[node['value']['name']]['members'][key] = {
+                    'offset': offset,
+                    'size': int(value['value'], 16) & 0xffff
+                }
+                offset += structures[node['value']['name']]['members'][key]['size']
+        elif t == 'CONSTANT':
+            if node['value']['name'] in symbolicNames or node['value']['name'] in structures:
+                raise Exception("Can't create constant " + node['value']['name'] + " because a binding with this name already exists.")
+            symbolicNames[node['value']['name']] = int(node['value']['value']['value'], 16) & 0xffff
+        elif t == 'DATA':
+            if node['value']['name'] in symbolicNames or node['value']['name'] in structures:
+                raise Exception("Can't create data " + node['value']['name'] + " because a binding with this name already exists.")
+            symbolicNames[node['value']['name']] = currentAddress
+
+            # calc the next offset based on the size of the data
+            sizeOfEachValueInBytes = 2 if node['value']['size'] == 16 else 1
+            totalSizeOfDataInBytes = len(node['value']['values']) * sizeOfEachValueInBytes
+            currentAddress += totalSizeOfDataInBytes
+        else:
+            metadata = instructions[node['value']['instruction']]
+            currentAddress += metadata['size']
+
+        def getNodeValue(node):
+            t = node['type']
+            if t == 'VARIABLE':
+                if not node['value'] in symbolicNames:
+                    raise Exception("label " + node['value'] + " wasn't resolved")
+                return symbolicNames[node['value']]
+            elif t == 'INTERPRET_AS':
+                struct = structures[node['value']['structure']]
+
+                if not struct:
+                    raise Exception("structure " + node['value']['structure'] + " wasn't resolved")
+                
+                member = struct['members'][node['value']['property']]
+                if not member:
+                    raise  Exception("property " + node['value']['property'] + " in structure " + node['value']['structure'] + " wasn't resolved")
+                
+                if node['value']['symbol'] not in symbolicNames:
+                    raise Exception("symbol " + node['value']['symbol'] + " wasn't resolved")
+                symbol = symbolicNames[node['value']['symbol']]
+                return symbol + member['offset']
+            elif t == 'HEX_LITERAL':
+                return int(node['value'], 16)
+            else:
+                raise Exception("Unsupported node type: " + node['type'])
+        
+        def encodeLitOrMem(node):
+            hexVal = getNodeValue(node)
+            highByte = (hexVal & 0xff00) >> 8
+            lowByte = hexVal & 0x00ff
+            # Big endian byte order
+            machineCode.append(highByte)
+            machineCode.append(lowByte)
+        def encodeLit8(node):
+            hexVal = getNodeValue(node)
+            lowByte = hexVal & 0x00ff
+            machineCode.append(lowByte)
+        def encodeReg(reg):
+            mappedReg = register_map[reg['value']]
+            machineCode.append(mappedReg)
+        def encodeData8(node):
+            for byte in node['value']['values']:
+                parsed = int(byte['value'], 16)
+                machineCode.append(parsed & 0xff)
+        def encodeData16(node):
+            for byte in node['value']['values']:
+                parsed = int(byte['value'], 16)
+                highByte = (parsed & 0xff00) >> 8
+                lowByte = parsed & 0x00ff
+
+        
+            
+
 def main():
-    code = """
-structure Rectangle {
-  x: $2,
-  y: $2,
-  w: $2,
-  h: $2
-}
-
-
-
-start_of_code:
-mov &[ <Rectangle> myRectangle.y ], r1
-
-  data16 myRectangle = { $A3, $1B, $04, $10 }
+    code = """       
++constant foo = $1234
     """
-    print(parse(code))
+    
+    parsedOutput = parse(code)
+    print(parsedOutput)
+    # asmOutput = asm(parsedOutput)
+
+
 
 if __name__ == '__main__':
     main()
