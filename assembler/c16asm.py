@@ -549,7 +549,8 @@ expressionElementParser = (
 
 
 def typifyBracketedExpr(expr):
-    return bracketedExpression(expr.map(lambda x: typifyBracketedExpr(x) if isinstance(x, list) else x))
+    # return bracketedExpression(expr.map(lambda x: typifyBracketedExpr(x) if isinstance(x, list) else x))
+    return bracketedExpression([(typifyBracketedExpr(x) if isinstance(x, list) else x) for x in expr])
 
 
 def disambiguateOrderOfOperations(expr):
@@ -947,8 +948,7 @@ def parse(code):
             res, rem = c16Parser.parse_partial(code)
         except Exception as e:
             raise Exception("Error parsing at position " +
-                            str(parsed) + " of " + str(orgLen) + ":\n" + str(e))
-        res, rem = c16Parser.parse_partial(code)
+                            str(parsed) + " of " + str(orgLen) + ":\n" + str(e) + "\n" + code)
         parsed += len(code) - len(rem)
         if res is None:
             break
@@ -1153,19 +1153,18 @@ structure Rectangle {
   h: $2
 }
 
-
-
 start_of_code:
 
   data16 myRectangle = { $A3, $1B, $FF, $FF10, $FF, $FF }
+  
 
-  mov &[ <Rectangle> myRectangle.x], r1
+  mov &[ <Rectangle> myRectangle.x + $2 * $4 ], r1
 
 
     """
 
-    parsedOutput = parse(code)
-    # pprint.pprint(parsedOutput)
+    parsedOutput = parse(code.strip())
+    pprint.pprint(parsedOutput)
     print("\n")
     asmOutput = asm(parsedOutput)
     print(" ".join(["%02x" % x for x in asmOutput]))
