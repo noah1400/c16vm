@@ -1,3 +1,4 @@
+import re
 import parsy as p
 
 # Instructions
@@ -418,6 +419,9 @@ register_map = {reg_name: index for index, reg_name in enumerate(registers)}
 
 # common parsers
 
+# whitespace or eol
+optWhite = p.regex("\s*")
+
 def upperOrLower(string):
     return p.string(string.upper()) | p.string(string.lower())
 
@@ -431,16 +435,20 @@ hexLiteralParser = (p.string("$") >> map_join(hexDigitParser.at_least(1))).map(h
 addressParser = (p.string("&") >> map_join(hexDigitParser.at_least(1))).map(address)
 validIdentifierParser = map_join(p.seq(p.regex("[a-zA-Z_]"), p.regex("[a-zA-Z0-9_]+").optional().map(lambda x: '' if x is None else x)))
 variableParser = p.string("!").then(validIdentifierParser).map(variable)
-labelParser = p.seq(validIdentifierParser, p.string(":"), p.regex("\s*")).map(lambda x: x[0]).map(label)
+labelParser = p.seq(validIdentifierParser, p.string(":"), optWhite).map(lambda x: x[0]).map(label)
 operatorParser = (p.string("+").map(opPlus) | p.string("-").map(opMinus) | p.string("*").map(opMultiply))
 
 peekParser = p.peek(p.any_char)
 
 
+
+
 def optionalWhitespaceSurrounded(parser):
-    return p.regex("\s*").then(parser).skip(p.regex("\s*"))
+
+    return optWhite.then(parser).skip(optWhite)
 
 def commaSeparated(parser):
+
     return optionalWhitespaceSurrounded(parser).sep_by(p.string(","))
 
 
@@ -450,13 +458,13 @@ def commaSeparated(parser):
 def constantParser():
     isExport = yield p.string("+").optional().map(lambda x: x is not None)
     yield p.string("constant")
-    yield p.regex("\s+")
+    yield p.whitespace
     name = yield validIdentifierParser
-    yield p.regex("\s+")
+    yield p.whitespace
     yield p.string("=")
-    yield p.regex("\s+")
+    yield p.whitespace
     value = yield hexLiteralParser
-    yield p.regex("\s*")
+    yield optWhite
     return constant({'isExport': isExport, 'name': name, 'value': value})
 
 # data parsers
@@ -465,17 +473,17 @@ def constantParser():
 def data8Parser():
     isExport = yield p.string("+").optional().map(lambda x: x is not None)
     yield p.string("data8")
-    yield p.regex("\s+")
+    yield p.whitespace
     name = yield validIdentifierParser
-    yield p.regex("\s+")
+    yield p.whitespace
     yield p.string("=")
-    yield p.regex("\s+")
+    yield p.whitespace
     yield p.string("{")
-    yield p.regex("\s*")
+    yield optWhite
     values = yield commaSeparated(hexLiteralParser)
-    yield p.regex("\s*")
+    yield optWhite
     yield p.string("}")
-    yield p.regex("\s*")
+    yield optWhite
 
     return data({'size': 8, 'isExport': isExport, 'name': name, 'values': values})
 
@@ -483,17 +491,17 @@ def data8Parser():
 def data16Parser():
     isExport = yield p.string("+").optional().map(lambda x: x is not None)
     yield p.string("data16")
-    yield p.regex("\s+")
+    yield p.whitespace
     name = yield validIdentifierParser
-    yield p.regex("\s+")
+    yield p.whitespace
     yield p.string("=")
-    yield p.regex("\s+")
+    yield p.whitespace
     yield p.string("{")
-    yield p.regex("\s*")
+    yield optWhite
     values = yield commaSeparated(hexLiteralParser)
-    yield p.regex("\s*")
+    yield optWhite
     yield p.string("}")
-    yield p.regex("\s*")
+    yield optWhite
 
     return data({'size': 16, 'isExport': isExport, 'name': name, 'values': values})
 
@@ -504,11 +512,11 @@ def interpretAsParser():
     yield p.string("<")
     structure = yield validIdentifierParser
     yield p.string(">")
-    yield p.regex("\s*")
+    yield optWhite
     symbol = yield validIdentifierParser
     yield p.string(".")
     prop = yield validIdentifierParser
-    yield p.regex("\s*")
+    yield optWhite
 
     return interpretAs({'structure': structure, 'symbol': symbol, 'property': prop})
 
@@ -519,7 +527,6 @@ expressionElementParser = (interpretAsParser | hexLiteralParser | variableParser
 def typifyBracketedExpr(expr):
     return bracketedExpression(expr.map(lambda x: typifyBracketedExpr(x) if isinstance(x, list) else x))
 
-@p.generate
 def disambiguateOrderOfOperations(expr):
     if expr['type'] != 'SQUARE_BRACKET_EXPRESSION' and expr['type'] != 'BRACKETED_EXPRESSION':
         return expr
@@ -580,7 +587,7 @@ def bracketedExprParser():
             yield p.string("(")
             expr.append([])
             stack.append(expr[-1])
-            yield p.regex("\s*")
+            yield optWhite
             state = ELEMENT_OR_OPENING_BRACKET
         elif state == CLOSE_BRACKET:
             yield p.string(")")
@@ -589,7 +596,7 @@ def bracketedExprParser():
                 # we're done
                 break
 
-            yield p.regex("\s*")
+            yield optWhite
             state = OPERATOR_OR_CLOSING_BRACKET
         elif state == ELEMENT_OR_OPENING_BRACKET:
             if nextChar == ")":
@@ -600,7 +607,7 @@ def bracketedExprParser():
             else:
                 exprElement = yield expressionElementParser
                 stack[-1].append(exprElement)
-                yield p.regex("\s*")
+                yield optWhite
                 state = OPERATOR_OR_CLOSING_BRACKET   
         elif state == OPERATOR_OR_CLOSING_BRACKET:
             if nextChar == ")":
@@ -609,7 +616,7 @@ def bracketedExprParser():
             
             o = yield operatorParser
             stack[-1].append(o)
-            yield p.regex("\s*")
+            yield optWhite
             state = ELEMENT_OR_OPENING_BRACKET
         else:
             # should never happen
@@ -621,7 +628,7 @@ def bracketedExprParser():
 def squareBracketExprParserWrapper():
 
     yield p.string("[")
-    yield p.regex("\s*")
+    yield optWhite
 
     # states:
     EXPECT_ELEMENT = 0
@@ -634,18 +641,18 @@ def squareBracketExprParserWrapper():
             result = yield (bracketedExprParser | expressionElementParser)
             expr.append(result)
             state = EXPECT_OPERATOR
-            yield p.regex("\s*")
+            yield optWhite
         elif state == EXPECT_OPERATOR:
             nextChar = yield peekParser
             if nextChar == "]":
                 yield p.string("]")
-                yield p.regex("\s*")
+                yield optWhite
                 break
 
             result = yield operatorParser
             expr.append(result)
             state = EXPECT_ELEMENT
-            yield p.regex("\s*")
+            yield optWhite
         else:
             # should never happen
             raise Exception("Unknown state")
@@ -653,61 +660,73 @@ def squareBracketExprParserWrapper():
 
 @p.generate
 def squareBracketExprParser():
-    expr = yield squareBracketExprParserWrapper.map(disambiguateOrderOfOperations)
+
+    expr = yield squareBracketExprParserWrapper.map(lambda x: disambiguateOrderOfOperations(x))
+
     return expr
 
 # structure parsers
 
 @p.generate
 def keyValuePairParser():
-    yield p.regex("\s*")
+
+    yield optWhite
     key = yield validIdentifierParser
-    yield p.regex("\s*")
+    yield optWhite
     yield p.string(":")
-    yield p.regex("\s*")
+    yield optWhite
     value = yield hexLiteralParser
-    yield p.regex("\s*")
+    yield optWhite
 
     return {'key': key, 'value': value}
 
 @p.generate
 def structureParser():
-    isExport = yield p.string("+").optional().map(lambda x: x is not None)
-    yield p.string("structure")
-    yield p.regex("\s+")
-    name = yield validIdentifierParser
-    yield p.regex("\s*")
-    yield p.string("{")
-    yield p.regex("\s*")
-    members = yield commaSeparated(keyValuePairParser)
-    yield p.regex("\s*")
-    yield p.string("}")
-    yield p.regex("\s*")
 
-    return structure({'isExport': isExport, 'name': name, 'members': members})
+    isExport = yield p.string("+").optional().map(lambda x: x is not None)
+
+    yield p.string("structure")
+
+    yield p.whitespace
+    name = yield validIdentifierParser
+    yield optWhite
+    yield p.string("{")
+    yield optWhite
+    members = yield commaSeparated(keyValuePairParser)
+    yield optWhite
+    yield p.string("}")
+    yield optWhite
+
+    s =  structure({'isExport': isExport, 'name': name, 'members': members})
+
+    return s
 
 # instruction parsers
 
 def litReg(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         arg1 = yield p.alt(hexLiteralParser, squareBracketExprParser)
         yield p.regex("\s*,\s*")
         arg2 = yield registerParser
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [arg1, arg2]})
     return  parser
 def regLit(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         r1 = yield registerParser
         yield p.regex("\s*,\s*")
         lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [r1, lit]})
     return parser
 def regLit8(mnemonic, type):
@@ -715,94 +734,114 @@ def regLit8(mnemonic, type):
 def regReg(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         r1 = yield registerParser
         yield p.regex("\s*,\s*")
         r2 = yield registerParser
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [r1, r2]})
     return parser
 def regMem(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         r1 = yield registerParser
         yield p.regex("\s*,\s*")
         addr = yield p.alt(addressParser, p.string("&").then(squareBracketExprParser))
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [r1, addr]})
     return parser
 def memReg(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         addr = yield p.alt(addressParser, p.string("&").then(squareBracketExprParser))
         yield p.regex("\s*,\s*")
         r1 = yield registerParser
-        yield p.regex("\s*")
-        return instruction({'instruction': type, 'args': [addr, r1]})
+        yield optWhite
+        i = instruction({'instruction': type, 'args': [addr, r1]})
+
+        return i
     return parser
 def litMem(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
         yield p.regex("\s*,\s*")
         addr = yield p.alt(addressParser, p.string("&").then(squareBracketExprParser))
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [lit, addr]})
     return parser
 def regPtrReg(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         r1 = yield p.string("&").then(registerParser)
         yield p.regex("\s*,\s*")
         r2 = yield registerParser
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [r1, r2]})
     return parser
 def litOffReg(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
         yield p.regex("\s*,\s*")
         r1 = yield p.string("&").then(registerParser)
         yield p.regex("\s*,\s*")
         r2 = yield registerParser
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [lit, r1, r2]})
     return parser
 def noArgs(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s*")
+
+        yield optWhite
         return instruction({'instruction': type, 'args': []})
     return parser
 def singleReg(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         r1 = yield registerParser
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [r1]})
     return parser
 def singleLit(mnemonic, type):
     @p.generate
     def parser():
+
         yield upperOrLower(mnemonic)
-        yield p.regex("\s+")
+
+        yield p.whitespace
         lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
-        yield p.regex("\s*")
+        yield optWhite
         return instruction({'instruction': type, 'args': [lit]})
     return parser
 
@@ -814,23 +853,59 @@ for instr in meta:
         raise Exception("Unknown instruction type: " + instr['type'])
     # Call the parser factory to create a parser.
     parser = type_formats[instr['type']](instr['mnemonic'], instr['instruction'])
-    all_instructions.append(parser)
+    all_instructions.append(optWhite >> parser << optWhite)
 
 @p.generate
 def instructionParser():
-    yield p.regex("\s*")
-    instr = yield p.alt(*all_instructions)
-    yield p.regex("\s*")
+
+    instr = yield optWhite >> p.alt(*all_instructions) << optWhite
+
     return instr
 
+@p.generate
+def newlineParser():
 
+    res = yield p.regex("[\r\n\t\f\v]*")
+    if not res:
+        yield p.fail("")
+    return res
+
+@p.generate
+def c16Parser():
+
+    res = yield p.alt(newlineParser, data8Parser, data16Parser, constantParser, structureParser, labelParser, instructionParser)
+    return res
+
+def parse(code):
+    result = []
+    while 1:
+        if not code:
+            break
+        res, rem = c16Parser.parse_partial(code)
+        if res is None:
+            break
+        if res not in [None, '', '\n']:
+            result.append(res)
+        code = rem
+    return result
 
 def main():
-    code = "mov &[ <Rectangle> myRectangle.y ], r1"
-    print(code)
-    print(instructionParser.parse(code))
+    code = """
+structure Rectangle {
+  x: $2,
+  y: $2,
+  w: $2,
+  h: $2
+}
 
 
+
+start_of_code:
+mov &[ <Rectangle> myRectangle.y ], r1
+
+  data16 myRectangle = { $A3, $1B, $04, $10 }
+    """
+    print(parse(code))
 
 if __name__ == '__main__':
     main()
