@@ -372,11 +372,13 @@ meta = [
     }
 ]
 
+
 def indexBy(arr, prop):
     output = {}
     for item in arr:
         output[item[prop]] = item
     return output
+
 
 instructions = indexBy(meta, 'instruction')
 
@@ -387,6 +389,7 @@ def asType(type):
     def inner(value):
         return {'type': type, 'value': value}
     return inner
+
 
 def map_join(parser: p.Parser):
     return parser.map(lambda x: ''.join(x))
@@ -418,7 +421,7 @@ interpretAs = asType('INTERPRET_AS')
 
 registers = [
     "IP", "ACC",
-    "R1", "R2", "R3", "R4", 
+    "R1", "R2", "R3", "R4",
     "R5", "R6", "R7", "R8",
     "SP", "FP", "MB", "IM"
 ]
@@ -430,30 +433,37 @@ register_map = {reg_name: index for index, reg_name in enumerate(registers)}
 # whitespace or eol
 optWhite = p.regex("\s*")
 
+
 def upperOrLower(string):
     return p.string(string.upper()) | p.string(string.lower())
+
 
 @p.generate
 def registerParser():
     reg = yield (upperOrLower("IP") | upperOrLower("ACC") | upperOrLower("R1") | upperOrLower("R2") | upperOrLower("R3") | upperOrLower("R4") | upperOrLower("R5") | upperOrLower("R6") | upperOrLower("R7") | upperOrLower("R8") | upperOrLower("SP") | upperOrLower("FP") | upperOrLower("MB") | upperOrLower("IM")).map(lambda x: register(x.upper()))
     return reg
 
+
 hexDigitParser = p.regex("[0-9a-fA-F]")
-hexLiteralParser = (p.string("$") >> map_join(hexDigitParser.at_least(1))).map(hexLiteral)
-addressParser = (p.string("&") >> map_join(hexDigitParser.at_least(1))).map(address)
-validIdentifierParser = map_join(p.seq(p.regex("[a-zA-Z_]"), p.regex("[a-zA-Z0-9_]+").optional().map(lambda x: '' if x is None else x)))
+hexLiteralParser = (p.string("$") >> map_join(
+    hexDigitParser.at_least(1))).map(hexLiteral)
+addressParser = (p.string("&") >> map_join(
+    hexDigitParser.at_least(1))).map(address)
+validIdentifierParser = map_join(p.seq(p.regex(
+    "[a-zA-Z_]"), p.regex("[a-zA-Z0-9_]+").optional().map(lambda x: '' if x is None else x)))
 variableParser = p.string("!").then(validIdentifierParser).map(variable)
-labelParser = p.seq(validIdentifierParser, p.string(":"), optWhite).map(lambda x: x[0]).map(label)
-operatorParser = (p.string("+").map(opPlus) | p.string("-").map(opMinus) | p.string("*").map(opMultiply))
+labelParser = p.seq(validIdentifierParser, p.string(
+    ":"), optWhite).map(lambda x: x[0]).map(label)
+operatorParser = (p.string("+").map(opPlus) |
+                  p.string("-").map(opMinus) | p.string("*").map(opMultiply))
 
 peekParser = p.peek(p.any_char)
-
-
 
 
 def optionalWhitespaceSurrounded(parser):
 
     return optWhite.then(parser).skip(optWhite)
+
 
 def commaSeparated(parser):
 
@@ -477,6 +487,7 @@ def constantParser():
 
 # data parsers
 
+
 @p.generate
 def data8Parser():
     isExport = yield p.string("+").optional().map(lambda x: x is not None)
@@ -494,6 +505,7 @@ def data8Parser():
     yield optWhite
 
     return data({'size': 8, 'isExport': isExport, 'name': name, 'values': values})
+
 
 @p.generate
 def data16Parser():
@@ -515,6 +527,7 @@ def data16Parser():
 
 # interpret as parser
 
+
 @p.generate
 def interpretAsParser():
     yield p.string("<")
@@ -530,18 +543,22 @@ def interpretAsParser():
 
 # expression parsers
 
-expressionElementParser = (interpretAsParser | hexLiteralParser | variableParser )
+
+expressionElementParser = (
+    interpretAsParser | hexLiteralParser | variableParser)
+
 
 def typifyBracketedExpr(expr):
     return bracketedExpression(expr.map(lambda x: typifyBracketedExpr(x) if isinstance(x, list) else x))
 
+
 def disambiguateOrderOfOperations(expr):
     if expr['type'] != 'SQUARE_BRACKET_EXPRESSION' and expr['type'] != 'BRACKETED_EXPRESSION':
         return expr
-    
+
     if len(expr['value']) == 1:
         return expr['value'][0]
-    
+
     priorities = {
         'OP_MULTIPLY': 2,
         'OP_PLUS': 1,
@@ -574,6 +591,7 @@ def disambiguateOrderOfOperations(expr):
 
     return disambiguateOrderOfOperations(newExpression)
 
+
 @p.generate
 def bracketedExprParser():
     # states:
@@ -590,7 +608,7 @@ def bracketedExprParser():
 
     while True:
         nextChar = yield peekParser
-        
+
         if state == OPEN_BRACKET:
             yield p.string("(")
             expr.append([])
@@ -616,12 +634,12 @@ def bracketedExprParser():
                 exprElement = yield expressionElementParser
                 stack[-1].append(exprElement)
                 yield optWhite
-                state = OPERATOR_OR_CLOSING_BRACKET   
+                state = OPERATOR_OR_CLOSING_BRACKET
         elif state == OPERATOR_OR_CLOSING_BRACKET:
             if nextChar == ")":
                 state = CLOSE_BRACKET
                 continue
-            
+
             o = yield operatorParser
             stack[-1].append(o)
             yield optWhite
@@ -629,8 +647,9 @@ def bracketedExprParser():
         else:
             # should never happen
             raise Exception("Unknown state")
-    
+
     return typifyBracketedExpr(expr)
+
 
 @p.generate
 def squareBracketExprParserWrapper():
@@ -666,6 +685,7 @@ def squareBracketExprParserWrapper():
             raise Exception("Unknown state")
     return squareBracketExpression(expr)
 
+
 @p.generate
 def squareBracketExprParser():
 
@@ -674,6 +694,7 @@ def squareBracketExprParser():
     return expr
 
 # structure parsers
+
 
 @p.generate
 def keyValuePairParser():
@@ -687,6 +708,7 @@ def keyValuePairParser():
     yield optWhite
 
     return {'key': key, 'value': value}
+
 
 @p.generate
 def structureParser():
@@ -705,11 +727,12 @@ def structureParser():
     yield p.string("}")
     yield optWhite
 
-    s =  structure({'isExport': isExport, 'name': name, 'members': members})
+    s = structure({'isExport': isExport, 'name': name, 'members': members})
 
     return s
 
 # instruction parsers
+
 
 def litReg(mnemonic, type):
     @p.generate
@@ -723,7 +746,9 @@ def litReg(mnemonic, type):
         arg2 = yield registerParser
         yield optWhite
         return instruction({'instruction': type, 'args': [arg1, arg2]})
-    return  parser
+    return parser
+
+
 def regLit(mnemonic, type):
     @p.generate
     def parser():
@@ -737,8 +762,12 @@ def regLit(mnemonic, type):
         yield optWhite
         return instruction({'instruction': type, 'args': [r1, lit]})
     return parser
+
+
 def regLit8(mnemonic, type):
     regLit(mnemonic, type)
+
+
 def regReg(mnemonic, type):
     @p.generate
     def parser():
@@ -752,6 +781,8 @@ def regReg(mnemonic, type):
         yield optWhite
         return instruction({'instruction': type, 'args': [r1, r2]})
     return parser
+
+
 def regMem(mnemonic, type):
     @p.generate
     def parser():
@@ -765,6 +796,8 @@ def regMem(mnemonic, type):
         yield optWhite
         return instruction({'instruction': type, 'args': [r1, addr]})
     return parser
+
+
 def memReg(mnemonic, type):
     @p.generate
     def parser():
@@ -780,6 +813,8 @@ def memReg(mnemonic, type):
 
         return i
     return parser
+
+
 def litMem(mnemonic, type):
     @p.generate
     def parser():
@@ -793,6 +828,8 @@ def litMem(mnemonic, type):
         yield optWhite
         return instruction({'instruction': type, 'args': [lit, addr]})
     return parser
+
+
 def regPtrReg(mnemonic, type):
     @p.generate
     def parser():
@@ -806,6 +843,8 @@ def regPtrReg(mnemonic, type):
         yield optWhite
         return instruction({'instruction': type, 'args': [r1, r2]})
     return parser
+
+
 def litOffReg(mnemonic, type):
     @p.generate
     def parser():
@@ -821,6 +860,8 @@ def litOffReg(mnemonic, type):
         yield optWhite
         return instruction({'instruction': type, 'args': [lit, r1, r2]})
     return parser
+
+
 def noArgs(mnemonic, type):
     @p.generate
     def parser():
@@ -830,6 +871,8 @@ def noArgs(mnemonic, type):
         yield optWhite
         return instruction({'instruction': type, 'args': []})
     return parser
+
+
 def singleReg(mnemonic, type):
     @p.generate
     def parser():
@@ -841,6 +884,8 @@ def singleReg(mnemonic, type):
         yield optWhite
         return instruction({'instruction': type, 'args': [r1]})
     return parser
+
+
 def singleLit(mnemonic, type):
     @p.generate
     def parser():
@@ -853,15 +898,19 @@ def singleLit(mnemonic, type):
         return instruction({'instruction': type, 'args': [lit]})
     return parser
 
-type_formats ={value: globals()[type] for type, value in instructionTypes.items()}
+
+type_formats = {value: globals()[type]
+                for type, value in instructionTypes.items()}
 
 all_instructions = []
 for instr in meta:
     if instr['type'] not in type_formats:
         raise Exception("Unknown instruction type: " + instr['type'])
     # Call the parser factory to create a parser.
-    parser = type_formats[instr['type']](instr['mnemonic'], instr['instruction'])
+    parser = type_formats[instr['type']](
+        instr['mnemonic'], instr['instruction'])
     all_instructions.append(optWhite >> parser << optWhite)
+
 
 @p.generate
 def instructionParser():
@@ -869,6 +918,7 @@ def instructionParser():
     instr = yield optWhite >> p.alt(*all_instructions) << optWhite
 
     return instr
+
 
 @p.generate
 def newlineParser():
@@ -878,11 +928,13 @@ def newlineParser():
         yield p.fail("")
     return res
 
+
 @p.generate
 def c16Parser():
 
     res = yield p.alt(newlineParser, data8Parser, data16Parser, constantParser, structureParser, labelParser, instructionParser)
     return res
+
 
 def parse(code):
     result = []
@@ -894,7 +946,8 @@ def parse(code):
         try:
             res, rem = c16Parser.parse_partial(code)
         except Exception as e:
-            raise Exception("Error parsing at position " + str(parsed) + " of " + str(orgLen) + ":\n" + str(e))
+            raise Exception("Error parsing at position " +
+                            str(parsed) + " of " + str(orgLen) + ":\n" + str(e))
         res, rem = c16Parser.parse_partial(code)
         parsed += len(code) - len(rem)
         if res is None:
@@ -904,109 +957,218 @@ def parse(code):
         code = rem
     return result
 
+import pprint
+
+
 def asm(ast):
+
+    def disasm(tree):
+        disasm_out = []
+        for node in tree:
+            disasm_t = node['type']
+            if disasm_t == 'INSTRUCTION':
+                v = node['value']
+                disasm_out.append([0, '\t' + v['instruction'] + ' ' + ', '.join([x['value'] for x in v['args']]), v])
+            if disasm_t == 'LABEL':
+                disasm_out.append([0, disasm_t + ' ' + node['value'], node])
+            disasm_out.append(None)
+
     machineCode = []
     symbolicNames = {}
     structures = {}
-    currentAddress = 0
+    currentAddress = 0x2000
 
     for node in ast:
         t = node['type']
-        if t == 'LABEL':
-            if node['value'] in symbolicNames or node['value']['name'] in structures:
-                raise Exception("Can't create label " + node['value'] + " because a binding with this name already exists.")
-            symbolicNames[node['value']] = currentAddress
-        elif t == 'STRUCTURE':
-            if node['value'] in symbolicNames or node['value']['name'] in structures:
-                raise Exception("Can't create structure " + node['value'] + " because a binding with this name already exists.")
-            structures[node['value']['name']] = {'members': {}}
-
-            offset = 0
-            for key, value in node['value']['members'].items():
-                structures[node['value']['name']]['members'][key] = {
-                    'offset': offset,
-                    'size': int(value['value'], 16) & 0xffff
-                }
-                offset += structures[node['value']['name']]['members'][key]['size']
-        elif t == 'CONSTANT':
-            if node['value']['name'] in symbolicNames or node['value']['name'] in structures:
-                raise Exception("Can't create constant " + node['value']['name'] + " because a binding with this name already exists.")
-            symbolicNames[node['value']['name']] = int(node['value']['value']['value'], 16) & 0xffff
-        elif t == 'DATA':
-            if node['value']['name'] in symbolicNames or node['value']['name'] in structures:
-                raise Exception("Can't create data " + node['value']['name'] + " because a binding with this name already exists.")
-            symbolicNames[node['value']['name']] = currentAddress
-
-            # calc the next offset based on the size of the data
-            sizeOfEachValueInBytes = 2 if node['value']['size'] == 16 else 1
-            totalSizeOfDataInBytes = len(node['value']['values']) * sizeOfEachValueInBytes
-            currentAddress += totalSizeOfDataInBytes
-        else:
+        if t not in ['LABEL', 'STRUCTURE', 'CONSTANT', 'DATA']:
             metadata = instructions[node['value']['instruction']]
             currentAddress += metadata['size']
+        else:
+            v = node['value']
+            vn = v['name'] if 'name' in v else None
+            if t == 'LABEL':
+                if v in symbolicNames or vn in structures:
+                    raise Exception(
+                        "Can't create label " + node['value'] + " because a binding with this name already exists.")
+                symbolicNames[node['value']] = currentAddress
+            elif t == 'STRUCTURE':
+                if node['value']['name'] in symbolicNames or node['value']['name'] in structures:
+                    raise Exception(
+                        "Can't create structure " + node['value'] + " because a binding with this name already exists.")
+                structures[node['value']['name']] = {'members': {}}
 
-        def getNodeValue(node):
-            t = node['type']
-            if t == 'VARIABLE':
-                if not node['value'] in symbolicNames:
-                    raise Exception("label " + node['value'] + " wasn't resolved")
-                return symbolicNames[node['value']]
-            elif t == 'INTERPRET_AS':
-                struct = structures[node['value']['structure']]
+                offset = 0
+                for entry in node['value']['members']:
+                    key = entry['key']
+                    value = entry['value']
+                    structures[node['value']['name']]['members'][key] = {
+                        'offset': offset,
+                        'size': int(value['value'], 16) & 0xffff
+                    }
+                    offset += structures[node['value']
+                                         ['name']]['members'][key]['size']
+            elif t == 'CONSTANT':
+                if node['value']['name'] in symbolicNames or node['value']['name'] in structures:
+                    raise Exception(
+                        "Can't create constant " + node['value']['name'] + " because a binding with this name already exists.")
+                symbolicNames[node['value']['name']] = int(
+                    node['value']['value']['value'], 16) & 0xffff
+            elif t == 'DATA':
+                if node['value']['name'] in symbolicNames or node['value']['name'] in structures:
+                    raise Exception(
+                        "Can't create data " + node['value']['name'] + " because a binding with this name already exists.")
+                symbolicNames[node['value']['name']] = currentAddress
 
-                if not struct:
-                    raise Exception("structure " + node['value']['structure'] + " wasn't resolved")
-                
-                member = struct['members'][node['value']['property']]
-                if not member:
-                    raise  Exception("property " + node['value']['property'] + " in structure " + node['value']['structure'] + " wasn't resolved")
-                
-                if node['value']['symbol'] not in symbolicNames:
-                    raise Exception("symbol " + node['value']['symbol'] + " wasn't resolved")
-                symbol = symbolicNames[node['value']['symbol']]
-                return symbol + member['offset']
-            elif t == 'HEX_LITERAL':
-                return int(node['value'], 16)
-            else:
-                raise Exception("Unsupported node type: " + node['type'])
-        
-        def encodeLitOrMem(node):
-            hexVal = getNodeValue(node)
-            highByte = (hexVal & 0xff00) >> 8
-            lowByte = hexVal & 0x00ff
+                # calc the next offset based on the size of the data
+                sizeOfEachValueInBytes = 2 if node['value']['size'] == 16 else 1
+                totalSizeOfDataInBytes = len(
+                    node['value']['values']) * sizeOfEachValueInBytes
+                currentAddress += totalSizeOfDataInBytes
+
+    def getNodeValue(node):
+        t = node['type']
+        if t == 'VARIABLE':
+            if not node['value'] in symbolicNames:
+                raise Exception("label " + node['value'] + " wasn't resolved")
+            return symbolicNames[node['value']]
+        elif t == 'INTERPRET_AS':
+            struct = structures[node['value']['structure']]
+
+            if not struct:
+                raise Exception(
+                    "structure " + node['value']['structure'] + " wasn't resolved")
+
+            member = struct['members'][node['value']['property']]
+            if not member:
+                raise Exception("property " + node['value']['property'] +
+                                " in structure " + node['value']['structure'] + " wasn't resolved")
+
+            if node['value']['symbol'] not in symbolicNames:
+                raise Exception(
+                    "symbol " + node['value']['symbol'] + " wasn't resolved")
+            symbol = symbolicNames[node['value']['symbol']]
+            return symbol + member['offset']
+        elif t == 'HEX_LITERAL':
+            return int(node['value'], 16)
+        else:
+            raise Exception("Unsupported node type: " + node['type'])
+
+    def encodeLitOrMem(node):
+        hexVal = getNodeValue(node)
+        highByte = (hexVal & 0xff00) >> 8
+        lowByte = hexVal & 0x00ff
+        # Big endian byte order
+        machineCode.append(highByte)
+        machineCode.append(lowByte)
+
+    def encodeLit8(node):
+        hexVal = getNodeValue(node)
+        lowByte = hexVal & 0x00ff
+        machineCode.append(lowByte)
+
+    def encodeReg(reg):
+        mappedReg = register_map[reg['value']]
+        machineCode.append(mappedReg)
+
+    def encodeData8(node):
+        for byte in node['value']['values']:
+            parsed = int(byte['value'], 16)
+            machineCode.append(parsed & 0xff)
+
+    def encodeData16(node):
+        for byte in node['value']['values']:
+            parsed = int(byte['value'], 16)
+            highByte = (parsed & 0xff00) >> 8
+            lowByte = parsed & 0x00ff
             # Big endian byte order
             machineCode.append(highByte)
             machineCode.append(lowByte)
-        def encodeLit8(node):
-            hexVal = getNodeValue(node)
-            lowByte = hexVal & 0x00ff
-            machineCode.append(lowByte)
-        def encodeReg(reg):
-            mappedReg = register_map[reg['value']]
-            machineCode.append(mappedReg)
-        def encodeData8(node):
-            for byte in node['value']['values']:
-                parsed = int(byte['value'], 16)
-                machineCode.append(parsed & 0xff)
-        def encodeData16(node):
-            for byte in node['value']['values']:
-                parsed = int(byte['value'], 16)
-                highByte = (parsed & 0xff00) >> 8
-                lowByte = parsed & 0x00ff
 
-        
-            
+    for node in ast:
+        if node['type'] in ['LABEL', 'CONSTANT', 'STRUCTURE']:
+            continue
+        # encode data
+        if node['type'] == 'DATA':
+            if node['value']['size'] == 8:
+                encodeData8(node)
+            else:
+                encodeData16(node)
+            continue
+
+        metadata = instructions[node['value']['instruction']]
+        machineCode.append(metadata['opcode'])
+        mt = metadata['type']
+
+        if mt in [instructionTypes['litReg'], instructionTypes['memReg']]:
+            encodeLitOrMem(node['value']['args'][0])
+            encodeReg(node['value']['args'][1])
+
+        if mt == instructionTypes['regLit8']:
+            encodeReg(node['value']['args'][0])
+            encodeLit8(node['value']['args'][1])
+
+        if mt in [instructionTypes['regLit'], instructionTypes['regMem']]:
+            encodeReg(node['value']['args'][0])
+            encodeLitOrMem(node['value']['args'][1])
+
+        if mt == instructionTypes['litMem']:
+            encodeLitOrMem(node['value']['args'][0])
+            encodeLitOrMem(node['value']['args'][1])
+
+        if mt in [instructionTypes['regReg'], instructionTypes['regPtrReg']]:
+            encodeReg(node['value']['args'][0])
+            encodeReg(node['value']['args'][1])
+
+        if mt == instructionTypes['litOffReg']:
+            encodeLitOrMem(node['value']['args'][0])
+            encodeReg(node['value']['args'][1])
+            encodeLit8(node['value']['args'][2])
+
+        if mt == instructionTypes['singleReg']:
+            encodeReg(node['value']['args'][0])
+
+        if mt == instructionTypes['singleLit']:
+            encodeLitOrMem(node['value']['args'][0])
+
+        if mt == instructionTypes['noArgs']:
+            continue
+
+    pprint.pprint(structures)
+    pprint.pprint(symbolicNames)
+    pprint.pprint(machineCode)
+
+    # print("disassembling...")
+    # disassembled = disasm(ast)
+    # pprint.pprint(disassembled)
+
+    return machineCode
+
 
 def main():
     code = """       
-+constant foo = $1234
+structure Rectangle {
+  x: $4,
+  y: $2,
+  w: $2,
+  h: $2
+}
+
+
+
+start_of_code:
+
+  data16 myRectangle = { $A3, $1B, $FF, $FF10, $FF, $FF }
+
+  mov &[ <Rectangle> myRectangle.x], r1
+
+
     """
-    
+
     parsedOutput = parse(code)
-    print(parsedOutput)
-    # asmOutput = asm(parsedOutput)
-
-
+    # pprint.pprint(parsedOutput)
+    print("\n")
+    asmOutput = asm(parsedOutput)
+    print(" ".join(["%02x" % x for x in asmOutput]))
 
 if __name__ == '__main__':
     main()
