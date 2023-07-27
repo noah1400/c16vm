@@ -554,6 +554,7 @@ def typifyBracketedExpr(expr):
 
 
 def disambiguateOrderOfOperations(expr):
+
     if expr['type'] != 'SQUARE_BRACKET_EXPRESSION' and expr['type'] != 'BRACKETED_EXPRESSION':
         return expr
 
@@ -595,6 +596,7 @@ def disambiguateOrderOfOperations(expr):
 
 @p.generate
 def bracketedExprParser():
+
     # states:
     OPEN_BRACKET = 0
     OPERATOR_OR_CLOSING_BRACKET = 1
@@ -608,6 +610,7 @@ def bracketedExprParser():
     yield p.string("(")
 
     while True:
+        yield optWhite
         nextChar = yield peekParser
 
         if state == OPEN_BRACKET:
@@ -632,7 +635,9 @@ def bracketedExprParser():
             if nextChar == "(":
                 state = OPEN_BRACKET
             else:
-                exprElement = yield expressionElementParser
+                exprElement = yield expressionElementParser.optional()
+                if exprElement is None:
+                    yield p.fail("Unexpected end of expression element")
                 stack[-1].append(exprElement)
                 yield optWhite
                 state = OPERATOR_OR_CLOSING_BRACKET
@@ -666,7 +671,12 @@ def squareBracketExprParserWrapper():
 
     while True:
         if state == EXPECT_ELEMENT:
-            result = yield (bracketedExprParser | expressionElementParser)
+            # result = yield expressionElementParser.optional() | bracketedExprParser.optional()
+            result = yield p.alt(expressionElementParser, bracketedExprParser)
+
+            if result is None:
+                print("Unexpected end of expression result empty")
+                break
             expr.append(result)
             state = EXPECT_OPERATOR
             yield optWhite
@@ -684,12 +694,12 @@ def squareBracketExprParserWrapper():
         else:
             # should never happen
             raise Exception("Unknown state")
-    return squareBracketExpression(expr)
+    retexpr = squareBracketExpression(expr)
+    return retexpr
 
 
 @p.generate
 def squareBracketExprParser():
-
     expr = yield squareBracketExprParserWrapper.map(lambda x: disambiguateOrderOfOperations(x))
 
     return expr
@@ -888,12 +898,15 @@ def singleReg(mnemonic, type):
 
 
 def singleLit(mnemonic, type):
+    print(mnemonic, type)
     @p.generate
     def parser():
-        yield p.whitespace
+        yield optWhite
         yield upperOrLower(mnemonic)
-        yield p.whitespace
+        yield optWhite
         lit = yield p.alt(hexLiteralParser, squareBracketExprParser)
+        if lit is None:
+            p.fail("Expected literal")
         yield optWhite
         return instruction({'instruction': type, 'args': [lit]})
     return parser
@@ -916,6 +929,7 @@ for instr in meta:
 def instructionParser():
 
     instr = yield optWhite >> p.alt(*all_instructions) << optWhite
+    print("instr", instr)
 
     return instr
 
@@ -1152,12 +1166,14 @@ structure Rectangle {
   h: $2
 }
 
+constant a = $5
+
 start_of_code:
 
   
   
-  add r1, r2
-  mov &[ <Rectangle> myRectangle.x  ], r1
+  add $1, r1
+  mov &[ <Rectangle> myRectangle.x * ( $1 * !a ) ], r1
 
   data16 myRectangle = { $A3, $1B, $FF, $FF10 }
     
