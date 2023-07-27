@@ -1,3 +1,4 @@
+import pprint
 import re
 import parsy as p
 
@@ -899,6 +900,7 @@ def singleReg(mnemonic, type):
 
 def singleLit(mnemonic, type):
     print(mnemonic, type)
+
     @p.generate
     def parser():
         yield optWhite
@@ -970,8 +972,6 @@ def parse(code):
         code = rem
     return result
 
-import pprint
-
 
 def asm(ast):
 
@@ -981,7 +981,8 @@ def asm(ast):
             disasm_t = node['type']
             if disasm_t == 'INSTRUCTION':
                 v = node['value']
-                disasm_out.append([0, '\t' + v['instruction'] + ' ' + ', '.join([x['value'] for x in v['args']]), v])
+                disasm_out.append(
+                    [0, '\t' + v['instruction'] + ' ' + ', '.join([x['value'] for x in v['args']]), v])
             if disasm_t == 'LABEL':
                 disasm_out.append([0, disasm_t + ' ' + node['value'], node])
             disasm_out.append(None)
@@ -1184,6 +1185,7 @@ start_of_code:
     print("\n")
     asmOutput = asm(parsedOutput)
     print(" ".join(["%02x" % x for x in asmOutput]))
+
 
 if __name__ == '__main__':
     main()
