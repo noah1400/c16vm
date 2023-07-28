@@ -27,8 +27,11 @@ int main(void)
     c16cpu_t *cpu = c16cpu_create(mapper, interruptVector);
     C16MemoryAccessDevice *membankDevice = c16membank_createDevice(nBanks, bankSize, cpu);
     C16MemoryAccessDevice *regularMemoryDevice = c16memory_createDevice(0xff01);
+    C16MemoryAccessDevice *screenDevice = c16screen_createDevice();
     c16memmap_map(mapper, membankDevice, 0x0000, bankSize, FALSE);
-    c16memmap_map(mapper, regularMemoryDevice, bankSize, 0xffff, TRUE);
+    c16memmap_map(mapper, regularMemoryDevice, bankSize, 0xff00, TRUE);
+    c16memmap_map(mapper, screenDevice, 0xff00, 0xffff, TRUE);
+
     
     // setup interupt vector
     c16memmap_setUint16(mapper, interruptVector + 0x00, 0x2000);
