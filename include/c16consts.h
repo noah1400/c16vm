@@ -1,7 +1,7 @@
 #ifndef _c16consts_h
 #define _c16consts_h
 
-#define REG_COUNT 12
+#define REG_COUNT 14
 
 #define REG_IP 0
 #define REG_ACC 1
@@ -15,8 +15,10 @@
 #define REG_R8 9
 #define REG_SP 10
 #define REG_FP 11
+#define REG_MB 12
+#define REG_IM 13
 
 #define MEMORY_BYTES 256*256
-#define C16_CPU_SPEED 1000
+#define C16_CPU_SPEED 10000
 
 #endif // _c16consts_h

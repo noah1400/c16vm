@@ -67,6 +67,8 @@
     "tuple": "c",
     "type_traits": "c",
     "utility": "c",
-    "mpc.h": "c"
+    "mpc.h": "c",
+    "c16cpu.h": "c",
+    "c16membank.h": "c"
   }
 }

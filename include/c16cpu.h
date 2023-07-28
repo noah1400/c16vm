@@ -2,6 +2,7 @@
 #define _c16cpu_h_
 
 #include <string.h>
+#include <stdint.h>
 #include <c16memory.h>
 #include <stdlib.h>
 #include <c16instructions.h>
@@ -17,12 +18,14 @@
 
 
 
-typedef struct
+typedef struct _c16cpu_t
 {
     C16MemoryMap *memory;
     void *registers;
     char *regNames[REG_COUNT];
     size_t stackFrameSize;
+    uint16_t interuptVectorAddress;
+    char isInInteruptHandler;
 } c16cpu_t;
 
 typedef enum
@@ -39,7 +42,7 @@ typedef enum
     R8 = 9
 } reg_t;
 
-c16cpu_t *c16cpu_create(C16MemoryMap *memoryMap);
+c16cpu_t *c16cpu_create(C16MemoryMap *memoryMap, uint16_t interuptVectorAddress);
 
 int c16cpu_mapRegisterToOffset(c16cpu_t *cpu, char *regName);
 reg_t c16cpu_mapRegisterToEnum(c16cpu_t *cpu, char *regName);
@@ -58,8 +61,10 @@ void c16cpu_popState(c16cpu_t *cpu);
 
 size_t c16cpu_fetchRegisterIndex(c16cpu_t *cpu);
 
+void c16cpu_handleInterupt(c16cpu_t *cpu, uint16_t value);
+
 int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu);
-void c16cpu_run(c16cpu_t *cpu);
+void c16cpu_run(c16cpu_t *cpu, int debug);
 
 void c16cpu_debug(c16cpu_t *cpu);
 void c16cpu_viewMemoryAt(c16cpu_t *cpu, uint16_t offset, uint16_t size);

@@ -34,5 +34,6 @@ uint16_t c16memmap_getUint16(C16MemoryMap *map, uint16_t address);
 void c16memmap_setUint16(C16MemoryMap *map, uint16_t address, uint16_t value);
 uint8_t c16memmap_getUint8(C16MemoryMap *map, uint16_t address);
 void c16memmap_setUint8(C16MemoryMap *map, uint16_t address, uint8_t value);
+void c16memmap_load(C16MemoryMap *map, uint16_t startAdress, uint8_t *data, size_t length);
 
 #endif

@@ -1,7 +1,7 @@
 #include <c16cpu.h>
 #include <c16consts.h>
 
-c16cpu_t *c16cpu_create(C16MemoryMap *memory)
+c16cpu_t *c16cpu_create(C16MemoryMap *memory, uint16_t interuptVectorAddress)
 {
     c16cpu_t *cpu = malloc(sizeof(c16cpu_t));
     if (cpu == NULL)
@@ -25,6 +25,12 @@ c16cpu_t *c16cpu_create(C16MemoryMap *memory)
     cpu->regNames[REG_R8] = "R8";
     cpu->regNames[REG_SP] = "SP";
     cpu->regNames[REG_FP] = "FP";
+    cpu->regNames[REG_MB] = "MB";
+    cpu->regNames[REG_IM] = "IM";
+        
+    cpu->interuptVectorAddress = interuptVectorAddress;
+    cpu->isInInteruptHandler = FALSE;
+    c16cpu_setRegister(cpu, "IM", 0xffff);
 
     c16cpu_setRegister(cpu, "SP", 0xffff - 1);
     c16cpu_setRegister(cpu, "FP", 0xffff - 1);
@@ -168,461 +174,516 @@ size_t c16cpu_fetchRegisterIndex(c16cpu_t *cpu)
     return (c16cpu_fetch(cpu) % REG_COUNT) * sizeof(uint16_t);
 }
 
+void c16cpu_handleInterupt(c16cpu_t *cpu, uint16_t value)
+{
+    const char interuptBit = value % 0xf;
 
+    // If the interupt is masked by the interrupt mask register
+    // then do not enter the interrupt handler
+    const char isUnmasked = ( 1 << interuptBit ) & c16cpu_getRegister(cpu, "IM");
+    if (!isUnmasked)
+    {
+        return;
+    }
+
+    // Calculate where in the interrupt vector we'll look
+    const uint16_t vectorAddress = cpu->interuptVectorAddress + (interuptBit * sizeof(uint16_t));
+    // Get the address from the interupt vector at that address
+    const uint16_t interuptAddress = c16memmap_getUint16(cpu->memory, vectorAddress);
+
+    // We only save state when not already in an interrupt
+    if (!cpu->isInInteruptHandler)
+    {
+        // 0 = 0 args. This is just to maintain our calling convention
+        // If this were a software defined interrupt, the caller is expected
+        // to supply any required data in registers
+        c16cpu_push(cpu, 0);
+        // Save the state
+        c16cpu_pushState(cpu);
+    }
+
+    cpu->isInInteruptHandler = TRUE;
+
+    // Jump to the interupt handler
+    c16cpu_setRegister(cpu, "IP", interuptAddress);
+}
 
 int c16cpu_execute(uint8_t opcode, c16cpu_t *cpu)
 {
-    switch (opcode)
+    switch(opcode)
     {
-    case MOV_LIT_REG:
-    {
-        uint16_t literal = c16cpu_fetch16(cpu);
-        uint16_t reg = c16cpu_fetchRegisterIndex(cpu);
-        c16memory_setUint16(cpu->registers, reg, literal);
-    }
-        return MOV_LIT_REG;
-    case MOV_REG_REG:
-    {
-        uint16_t registerFrom = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerTo = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t value = c16memory_getUint16(cpu->registers, registerFrom);
-        c16memory_setUint16(cpu->registers, registerTo, value);
-    }
-        return MOV_REG_REG;
-    case MOV_REG_MEM:
-    {
-        uint16_t registerFrom = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-        uint16_t value = c16memory_getUint16(cpu->registers, registerFrom);
-        c16memmap_setUint16(cpu->memory, address, value);
-    }
-        return MOV_REG_MEM;
-    case MOV_MEM_REG:
-    {
-        uint16_t address = c16cpu_fetch16(cpu);
-        uint16_t registerTo = c16cpu_fetchRegisterIndex(cpu);;
-        uint16_t value = c16memmap_getUint16(cpu->memory, address);
-        c16memory_setUint16(cpu->registers, registerTo, value);
-    }
-        return MOV_MEM_REG;
-    case MOV_LIT_MEM:
-    {
-        uint16_t value = c16cpu_fetch16(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-        c16memmap_setUint16(cpu->memory, address, value);
-    }
-        return MOV_LIT_MEM;
-    case MOV_REG_PTR_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t ptr = c16memory_getUint16(cpu->registers, r1);
-        uint16_t value = c16memmap_getUint16(cpu->memory, ptr);
-        c16memory_setUint16(cpu->registers, r2, value);
-    }
-        return MOV_REG_PTR_REG;
-    case MOV_LIT_OFF_REG:
-    {
-        uint16_t baseAddress = c16cpu_fetch16(cpu);
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t offset = c16memmap_getUint16(cpu->memory, r1);
-
-        uint16_t value = c16memmap_getUint16(cpu->memory, baseAddress + offset);
-        c16memory_setUint16(cpu->registers, r2, value);
-    }
-        return MOV_LIT_OFF_REG;
-    case ADD_REG_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);;
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);;
-        uint16_t r1Value = c16memory_getUint16(cpu->registers, r1);
-        uint16_t r2Value = c16memory_getUint16(cpu->registers, r2);
-        uint16_t result = r1Value + r2Value;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return ADD_REG_REG;
-    case ADD_LIT_REG:
-    {
-        uint16_t literal = c16cpu_fetch16(cpu);
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
-        c16cpu_setRegister(cpu, "ACC", literal + registerValue);
-    }
-        return ADD_LIT_REG;
-    case SUB_LIT_REG:
-    {
-        uint16_t literal = c16cpu_fetch16(cpu);
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t result = registerValue - literal;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return SUB_LIT_REG;
-    case SUB_REG_LIT:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t literal = c16cpu_fetch16(cpu);
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t result = literal - registerValue;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return SUB_REG_LIT;
-    case SUB_REG_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
-        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
-        uint16_t result = registerValue1 - registerValue2;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return SUB_REG_REG;
-    case MUL_LIT_REG:
-    {
-        uint16_t literal = c16cpu_fetch16(cpu);
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t result = literal * registerValue;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-    case MUL_REG_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
-        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
-        uint16_t result = registerValue1 * registerValue2;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return MUL_REG_REG;
-    case INC_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t newValue = oldValue + 1;
-        c16memory_setUint16(cpu->registers, r1, newValue);
-    }
-        return INC_REG;
-    case DEC_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t newValue = oldValue - 1;
-        c16memory_setUint16(cpu->registers, r1, newValue);
-    }
-    case LSF_REG_LIT:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint8_t literal = c16cpu_fetch(cpu);
-        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t newValue = oldValue << literal;
-        c16memory_setUint16(cpu->registers, r1, newValue);
-    }
-        return LSF_REG_LIT;
-    case LSF_REG_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t shiftBy = c16memory_getUint16(cpu->registers, r2);
-        uint16_t newValue = oldValue << shiftBy;
-        c16memory_setUint16(cpu->registers, r1, newValue);
-    }
-        return LSF_REG_REG;
-    case RSF_REG_LIT:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint8_t literal = c16cpu_fetch(cpu);
-        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t newValue = oldValue >> literal;
-        c16memory_setUint16(cpu->registers, r1, newValue);
-    }
-        return RSF_REG_LIT;
-    case RSF_REG_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t shiftBy = c16memory_getUint16(cpu->registers, r2);
-        uint16_t newValue = oldValue >> shiftBy;
-        c16memory_setUint16(cpu->registers, r1, newValue);
-    }
-    case AND_REG_LIT:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t literal = c16cpu_fetch16(cpu);
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t result = registerValue & literal;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return AND_REG_LIT;
-    case AND_REG_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
-        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
-        uint16_t result = registerValue1 & registerValue2;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return AND_REG_REG;
-    case OR_REG_LIT:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t literal = c16cpu_fetch16(cpu);
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t result = registerValue | literal;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return OR_REG_LIT;
-    case OR_REG_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
-        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
-        uint16_t result = registerValue1 | registerValue2;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return OR_REG_REG;
-    case XOR_REG_LIT:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t literal = c16cpu_fetch16(cpu);
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t result = registerValue ^ literal;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return XOR_REG_LIT;
-    case XOR_REG_REG:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t r2 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
-        uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
-        uint16_t result = registerValue1 ^ registerValue2;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return XOR_REG_REG;
-    case NOT:
-    {
-        uint16_t r1 = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
-        uint16_t result = (~registerValue) & 0xFFFF;
-        c16cpu_setRegister(cpu, "ACC", result);
-    }
-        return NOT;
-    case JMP_NOT_EQ:
-    {
-        uint16_t value = c16cpu_fetch16(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-
-        if (value != acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JMP_NOT_EQ;
-    case JNE_REG:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
-
-        if (registerValue != acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JNE_REG;
-    case JEQ_LIT:
-    {
-        uint16_t value = c16cpu_fetch16(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-
-        if (value == acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JEQ_LIT;
-    case JEQ_REG:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
-
-        if (registerValue == acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JEQ_REG;
-    case JLT_LIT:
-    {
-        uint16_t value = c16cpu_fetch16(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-
-        if (value < acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JLT_LIT;
-    case JLT_REG:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
-
-        if (registerValue < acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JLT_REG;
-    case JGT_LIT:
-    {
-        uint16_t value = c16cpu_fetch16(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-
-        if (value > acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JGT_LIT;
-    case JGT_REG:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
-
-        if (registerValue > acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JGT_REG;
-    case JLE_LIT:
-    {
-        uint16_t value = c16cpu_fetch16(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-
-        if (value <= acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JLE_LIT;
-    case JLE_REG:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
-
-        if (registerValue <= acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JLE_REG;
-    case JGE_LIT:
-    {
-        uint16_t value = c16cpu_fetch16(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-
-        if (value >= acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-    case JGE_REG:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t address = c16cpu_fetch16(cpu);
-
-        uint16_t acc = c16cpu_getRegister(cpu, "ACC");
-        uint16_t registerValue = c16memory_getUint16(cpu->registers, registerIndex);
-
-        if (registerValue >= acc)
-        {
-            c16cpu_setRegister(cpu, "IP", address);
-        }
-    }
-        return JGE_REG;
-    case PSH_LIT:
-    {
-        uint16_t value = c16cpu_fetch16(cpu);
-        c16cpu_push(cpu, value);
-    }
-        return PSH_LIT;
-    case PSH_REG:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t value = c16memory_getUint16(cpu->registers, registerIndex);
-        c16cpu_push(cpu, value);
-    }
-        return PSH_REG;
-    case POP:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t value = c16cpu_pop(cpu);
-        c16memory_setUint16(cpu->registers, registerIndex, value);
-    }
-        return POP;
-    case CAL_LIT:
-    {
-        uint16_t address = c16cpu_fetch16(cpu);
-        c16cpu_pushState(cpu);
-        c16cpu_setRegister(cpu, "IP", address);
-    }
-        return CAL_LIT;
-    case CAL_REG:
-    {
-        uint16_t registerIndex = c16cpu_fetchRegisterIndex(cpu);
-        uint16_t address = c16memory_getUint16(cpu->registers, registerIndex);
-        c16cpu_pushState(cpu);
-        c16cpu_setRegister(cpu, "IP", address);
-    }
-        return CAL_REG;
-    case RET:
-    {
-        c16cpu_popState(cpu);
-    }
-        return RET;
-        
-    case NOP:
-    {
-        return NOP;
-    }
-    case HLT:
-    {
-        return HLT;
-    }
+        case RET_INT:
+            {
+                cpu->isInInteruptHandler = FALSE;
+                c16cpu_popState(cpu);
+            }
+            return RET_INT;
+        case C16INT:
+            // We're only looking at the  least significant nibble
+            {
+                const uint16_t value = c16cpu_fetch16(cpu) % 0xf;
+                c16cpu_handleInterupt(cpu, value);
+            }
+            return C16INT;
+        // Move literal into register
+        case MOV_LIT_REG:
+            {
+                const uint16_t lit = c16cpu_fetch16(cpu);
+                const size_t regIndex = c16cpu_fetchRegisterIndex(cpu);
+                c16memory_setUint16(cpu->registers, regIndex, lit);
+            }
+            return MOV_LIT_REG;
+        // Move register to register
+        case MOV_REG_REG:
+            {
+                const size_t registerFrom = c16cpu_fetchRegisterIndex(cpu);
+                const size_t registerTo = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, registerFrom);
+                c16memory_setUint16(cpu->registers, registerTo, value);
+            }
+            return MOV_REG_REG;
+        // Move register to memory
+        case MOV_REG_MEM:
+            {
+                const size_t registerFrom = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, registerFrom);
+                c16memmap_setUint16(cpu->memory, address, value);
+            }
+            return MOV_REG_MEM;
+        // Move memory to register
+        case MOV_MEM_REG:
+            {
+                const uint16_t address = c16cpu_fetch16(cpu);
+                const size_t registerTo = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memmap_getUint16(cpu->memory, address);
+                c16memory_setUint16(cpu->registers, registerTo, value);
+            }
+            return MOV_MEM_REG;
+        // Move literal to memory
+        case MOV_LIT_MEM:
+            {
+                const uint16_t value = c16cpu_fetch16(cpu);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                c16memmap_setUint16(cpu->memory, address, value);
+            }
+            return MOV_LIT_MEM;
+        // Move register* to register
+        case MOV_REG_PTR_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t ptr = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t value = c16memmap_getUint16(cpu->memory, ptr);
+                c16memory_setUint16(cpu->registers, r2, value);
+            }
+            return MOV_REG_PTR_REG;
+        // Move value at [literal + register] to register
+        case MOV_LIT_OFF_REG:
+            {
+                const uint16_t baseAddress = c16cpu_fetch16(cpu);
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t offset = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t value = c16memmap_getUint16(cpu->memory, baseAddress + offset);
+                c16memory_setUint16(cpu->registers, r2, value);
+            }
+            return MOV_LIT_OFF_REG;
+        // Add register to register
+        case ADD_REG_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+                const uint16_t result = registerValue1 + registerValue2;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return ADD_REG_REG;
+        // Add literal to register
+        case ADD_LIT_REG:
+            {
+                const uint16_t literal = c16cpu_fetch16(cpu);
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t result = literal + registerValue1;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return ADD_LIT_REG;
+        // Subtract literal from register value
+        case SUB_LIT_REG:
+            {
+                const uint16_t literal = c16cpu_fetch16(cpu);
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t result = registerValue1 - literal;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return SUB_LIT_REG;
+        // Subtract register value from literal
+        case SUB_REG_LIT:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t literal = c16cpu_fetch16(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t result = literal - registerValue1;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return SUB_REG_LIT;
+        // Subtract register value from register value
+        case SUB_REG_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+                const uint16_t result = registerValue1 - registerValue2;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return SUB_REG_REG;
+        // Multiply literal by register value
+        case MUL_LIT_REG:
+            {
+                const uint16_t literal = c16cpu_fetch16(cpu);
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t result = literal * registerValue1;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return MUL_LIT_REG;
+        // Multiply register value by register value
+        case MUL_REG_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+                const uint16_t result = registerValue1 * registerValue2;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return MUL_REG_REG;
+        // Increment value in register (in place)
+        case INC_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t newValue = oldValue + 1;
+                c16memory_setUint16(cpu->registers, r1, newValue);
+            }
+            return INC_REG;
+        // Decrement value in register (in place)
+        case DEC_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t newValue = oldValue - 1;
+                c16memory_setUint16(cpu->registers, r1, newValue);
+            }
+            return DEC_REG;
+        // Left shift register by literal (in place)
+        case LSF_REG_LIT:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint8_t literal = c16cpu_fetch(cpu);
+                const uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t newValue = oldValue << literal;
+                c16memory_setUint16(cpu->registers, r1, newValue);
+            }
+            return LSF_REG_LIT;
+        // Left shift register by register (in place)
+        case LSF_REG_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t shift = c16memory_getUint16(cpu->registers, r2);
+                const uint16_t newValue = oldValue << shift;
+                c16memory_setUint16(cpu->registers, r1, newValue);
+            }
+            return LSF_REG_REG;
+        // Right shift register by literal (in place)
+        case RSF_REG_LIT:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint8_t literal = c16cpu_fetch(cpu);
+                const uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t newValue = oldValue >> literal;
+                c16memory_setUint16(cpu->registers, r1, newValue);
+            }
+            return RSF_REG_LIT;
+        // Right shift register by register (in place)
+        case RSF_REG_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t oldValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t shift = c16memory_getUint16(cpu->registers, r2);
+                const uint16_t newValue = oldValue >> shift;
+                c16memory_setUint16(cpu->registers, r1, newValue);
+            }
+            return RSF_REG_REG;
+        // Bitwise AND register with literal
+        case AND_REG_LIT:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t literal = c16cpu_fetch16(cpu);
+                const uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t result = registerValue & literal;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return AND_REG_LIT;
+        // Bitwise AND register with register
+        case AND_REG_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+                const uint16_t result = registerValue1 & registerValue2;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return AND_REG_REG;
+        // Bitwise OR register with literal
+        case OR_REG_LIT:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t literal = c16cpu_fetch16(cpu);
+                const uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t result = registerValue | literal;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return OR_REG_LIT;
+        // Bitwise OR register with register
+        case OR_REG_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+                const uint16_t result = registerValue1 | registerValue2;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return OR_REG_REG;
+        // Bitwise XOR register with literal
+        case XOR_REG_LIT:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t literal = c16cpu_fetch16(cpu);
+                const uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t result = registerValue ^ literal;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return XOR_REG_LIT;
+        // Bitwise XOR register with register
+        case XOR_REG_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const size_t r2 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue1 = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t registerValue2 = c16memory_getUint16(cpu->registers, r2);
+                const uint16_t result = registerValue1 ^ registerValue2;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return XOR_REG_REG;
+        // Bitwise NOT (invert) register
+        case NOT:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t registerValue = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t result = (~registerValue) & 0xffff;
+                c16cpu_setRegister(cpu, "ACC", result);
+            }
+            return NOT;
+        // Jump if literal not equal
+        case JMP_NOT_EQ:
+            {
+                const uint16_t value = c16cpu_fetch16(cpu);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value != c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JMP_NOT_EQ;
+        // Jump if register not equal
+        case JNE_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value != c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JNE_REG;
+        // Jump if literal equal
+        case JEQ_LIT:
+            {
+                const uint16_t value = c16cpu_fetch16(cpu);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value == c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JEQ_LIT;
+        // Jump if register equal
+        case JEQ_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value == c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JEQ_REG;
+        // Jump if literal less then
+        case JLT_LIT:
+            {
+                const uint16_t value = c16cpu_fetch16(cpu);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value < c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JLT_LIT;
+        // Jump if register less then
+        case JLT_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value < c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JLT_REG;
+        // Jump if literal greater then
+        case JGT_LIT:
+            {
+                const uint16_t value = c16cpu_fetch16(cpu);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value > c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JGT_LIT;
+        // Jump if register greater then
+        case JGT_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value > c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JGT_REG;
+        // Jump if literal less then or equal
+        case JLE_LIT:
+            {
+                const uint16_t value = c16cpu_fetch16(cpu);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value <= c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JLE_LIT;
+        // Jump if register less then or equal
+        case JLE_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value <= c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JLE_REG;
+        // Jump if literal greater then or equal
+        case JGE_LIT:
+            {
+                const uint16_t value = c16cpu_fetch16(cpu);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value >= c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JGE_LIT;
+        // Jump if register greater then or equal
+        case JGE_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, r1);
+                const uint16_t address = c16cpu_fetch16(cpu);
+                if (value >= c16cpu_getRegister(cpu, "ACC"))
+                {
+                    c16cpu_setRegister(cpu, "IP", address);
+                }
+            }
+            return JGE_REG;
+        // Push Literal
+        case PSH_LIT:
+            {
+                const uint16_t value = c16cpu_fetch16(cpu);
+                c16cpu_push(cpu, value);
+            }
+            return PSH_LIT;
+        // Push Register
+        case PSH_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16memory_getUint16(cpu->registers, r1);
+                c16cpu_push(cpu, value);
+            }
+            return PSH_REG;
+        // Pop
+        case POP:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t value = c16cpu_pop(cpu);
+                c16memory_setUint16(cpu->registers, r1, value);
+            }
+            return POP;
+        // Call Literal
+        case CAL_LIT:
+            {
+                const uint16_t address = c16cpu_fetch16(cpu);
+                c16cpu_pushState(cpu);
+                c16cpu_setRegister(cpu, "IP", address);
+            }
+            return CAL_LIT;
+        // Call Register
+        case CAL_REG:
+            {
+                const size_t r1 = c16cpu_fetchRegisterIndex(cpu);
+                const uint16_t address = c16memory_getUint16(cpu->registers, r1);
+                c16cpu_pushState(cpu);
+                c16cpu_setRegister(cpu, "IP", address);
+            }
+            return CAL_REG;
+        // Return from subroutine
+        case RET:
+            {
+                c16cpu_popState(cpu);
+            }
+            return RET;
+        // Halt all computation
+        case HLT:
+            {
+                (void)0;
+            }
+            return HLT;
     }
 
     printf("Error: Unknown opcode: 0x%02x\n", opcode);
@@ -719,7 +780,7 @@ void _c16cpu_sleep_ms(double ms)
     SLEEP_MS(ms);
 }
 
-void c16cpu_run(c16cpu_t *cpu)
+void c16cpu_run(c16cpu_t *cpu, int debug)
 {
 #ifdef _WIN32
     LARGE_INTEGER frequency;
@@ -741,6 +802,9 @@ void c16cpu_run(c16cpu_t *cpu)
         clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
         int opcode = c16cpu_step(cpu);
+        if (debug) {
+            c16cpu_debug(cpu);
+        }
         if (opcode == HLT)
         {
             break;
