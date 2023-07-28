@@ -79,7 +79,8 @@ int main(void)
         0xff
     }, 31);
 
-    c16cpu_attachDebugger(cpu, debug);
+    // c16cpu_attachDebugger(cpu, debug);
+    c16cpu_run(cpu, 1);
 
     return 0;
 }
