@@ -6,7 +6,7 @@
 #include <c16membank.h>
 #include <c16instructions.h>
 
-const uint16_t screenOffset = 0xfc00;
+
 
 
 void debug(c16cpu_t *cpu)
@@ -21,28 +21,11 @@ void debug(c16cpu_t *cpu)
     }
 }
 
-// left byte
-uint8_t val1(uint8_t x, uint8_t y)
-{
-    printf("x: %d, y: %d, offset: %x\n", x, y, screenOffset);
-    uint16_t address = c16graphics_getByteToWrite(x, y);
-    printf("address: %x\n", address);
-    uint8_t ret =  ((address+screenOffset) >> 8) & 0xff;
-    return ret;
-}
-
-// right byte
-uint8_t val2(uint8_t x, uint8_t y)
-{
-    uint16_t address = c16graphics_getByteToWrite(x, y);
-    uint8_t ret = (address + screenOffset) & 0xff;
-    return ret;
-}
-
 int main(void)
 {
     // const int bankSize = 0xff;
     // const int nBanks = 8;
+    const uint16_t screenOffset = 0xf000;
     const uint16_t interruptVector = 0x1000;
     C16MemoryMap *mapper = c16memmap_createMemoryMap();
     c16cpu_t *cpu = c16cpu_create(mapper, interruptVector);
@@ -103,21 +86,24 @@ int main(void)
     //     0xff
     // }, 31);
 
+    uint8_t left = c16graphics_Left2ByteOfAddressAt(63, 2, screenOffset);
+    uint8_t right = c16graphics_Right2ByteOfAddressAt(63, 2, screenOffset);
+
     c16memmap_load(mapper, 0x0000, (uint8_t[]){
         // mov $1234, r1 -> color value
         0x10, 0x12, 0x34, 0x02,
-        // mov r1, coords(0, 5)
-        0x12, 0x02, val2(0,5), val1(0,5),
+        // mov r1, coords(left, right)
+        0x12, 0x02, left, right,
         // mov $1, r1 -> activate flag
         0x10, 0x00, 0x01, 0x02,
         // mov r1, $ff00
-        0x12, 0x02, 0xff, 0x00,
+        0x12, 0x02, 0xf0, 0x00,
         // hlt
         0xff
     }, 17);
 
-    c16cpu_attachDebugger(cpu, debug);
-    // c16cpu_run(cpu, 0);
+    // c16cpu_attachDebugger(cpu, debug);
+    c16cpu_run(cpu, 0);
 
     return 0;
 }

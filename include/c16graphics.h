@@ -22,7 +22,12 @@ void c16graphics_destroy(C16MemoryAccessDevice* device);
 uint16_t _c16graphics_getUint16(void *memory, uint16_t offset);
 void _c16graphics_setUint16(void *memory, uint16_t offset, uint16_t value);
 
-uint16_t c16graphics_getByteToWrite(uint8_t x, uint8_t y);
+// maps a 2D coordinate to a 1D address
+uint16_t c16graphics_coordsToAddress(uint8_t x, uint8_t y, uint16_t offset);
+// returns the 2 most significant bytes of the address at the given coordinates
+uint8_t c16graphics_Left2ByteOfAddressAt(uint8_t x, uint8_t y, uint16_t offset);
+// returns the 2 least significant bytes of the address at the given coordinates
+uint8_t c16graphics_Right2ByteOfAddressAt(uint8_t x, uint8_t y, uint16_t offset);
 
 void __c16graphics_createWindow();
 void __c16graphics_destroyWindow();
