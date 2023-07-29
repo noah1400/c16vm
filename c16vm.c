@@ -96,11 +96,15 @@ int main(void)
         0x12, 0x02, left, right,
         // mov $1, r1 -> activate flag
         0x10, 0x00, 0x01, 0x02,
-        // mov r1, $ff00
+        // mov r1, $f000
+        0x12, 0x02, 0xf0, 0x00,
+        // mov $0, r1 -> deactivate flag
+        0x10, 0x00, 0x00, 0x02,
+        // mov r1, $f000
         0x12, 0x02, 0xf0, 0x00,
         // hlt
         0xff
-    }, 17);
+    }, 25);
 
     // c16cpu_attachDebugger(cpu, debug);
     c16cpu_run(cpu, 0);

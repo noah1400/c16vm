@@ -121,11 +121,22 @@ void _c16graphics_setUint16(void *memory, uint16_t offset, uint16_t value)
         }
     }
 
-    uint16_t val = offset - 1; // remove 1 to get the actual offset
-    // see pixels as an array and value as the index
-    // get the x and y coordinates from the index
+    uint16_t val = offset - 1; // remove 1 to get the actual offset (0x0000 is for activation)
     uint16_t x = val % c16graphics_screenWidth;
     uint16_t y = val / c16graphics_screenWidth;
+
+    if (x >= c16graphics_screenWidth || y >= c16graphics_screenHeight)
+    {
+        printf("Error: Out of bounds graphics memory access at x: %d, y: %d\n", x, y);
+        exit(EXIT_FAILURE);
+    }
+    if (c16graphics_active == 0)
+    {
+        printf("Graphics window not active. Ignoring graphics memory access at x: %d, y: %d\n", x, y);
+        return;
+    }
+
+    // TODO: Implement drawing
 
     printf(" drawing pixel at x: %d, y: %d\n", x, y);
     printf(" with value: %x\n", value);
