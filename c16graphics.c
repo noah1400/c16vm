@@ -24,6 +24,8 @@ C16MemoryAccessDevice* c16graphics_createDevice()
 
     device->data = NULL;
 
+    strcpy(device->name, "Graphics");
+
     return device;
 }
 

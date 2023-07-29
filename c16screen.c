@@ -14,6 +14,8 @@ C16MemoryAccessDevice *c16screen_createDevice()
     device->setUint16 = _c16screen_setUint16;
     device->data = NULL;
 
+    strcpy(device->name, "Screen");
+
     return device;
 }
 
