@@ -12,7 +12,7 @@ gcc -o c16vm c16memory.c c16cpu.c c16memmap.c c16screen.c c16membank.c c16graphi
 
 All instructions and opcodes listed in [c16instructions.h](https://github.com/noah1400/c16vm/blob/main/include/c16instructions.h)
 
-Implementations of all instructions are done in [c16cpu.c](https://github.com/noah1400/c16vm/blob/8defde73e1779eee78da042cab681b9b1d97651c/c16cpu.c#L173)
+Implementations of all instructions are done in [c16cpu.c](https://github.com/noah1400/c16vm/blob/main/c16cpu.c#L211)
 
 ## Note
 
