@@ -19,6 +19,8 @@ C16MemoryAccessDevice *c16membank_createDevice(size_t n, size_t bankSize, c16cpu
     device->getUint16 = _c16membank_getUint16;
     device->setUint16 = _c16membank_setUint16;
 
+    strcpy(device->name, "Memory Bank");
+
     return device;
 }
 

@@ -69,6 +69,8 @@
     "utility": "c",
     "mpc.h": "c",
     "c16cpu.h": "c",
-    "c16membank.h": "c"
+    "c16membank.h": "c",
+    "c16graphics.h": "c",
+    "sdl.h": "c"
   }
 }

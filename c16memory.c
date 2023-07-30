@@ -14,6 +14,8 @@ C16MemoryAccessDevice *c16memory_createDevice(size_t sizeInBytes)
     device->setUint16 = c16memory_setUint16;
     device->data = c16memory_createMemory(sizeInBytes);
 
+    strcpy(device->name, "Memory");
+
     return device;
 }
 

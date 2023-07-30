@@ -13,17 +13,33 @@ C16MemoryMap *c16memmap_createMemoryMap()
     return map;
 }
 
-/*
-* Does not free device memory, as it is assumed that the device will be freed elsewhere.
-*/
 void c16memmap_destroyMemoryMap(C16MemoryMap *map)
 {
     for (int i = 0; i < map->regionCount; i++)
     {
+        C16MemoryAccessDevice *device = map->regions[i]->device;
+        if (device != NULL)
+        {
+            if (device->data != NULL)
+            {
+                free(device->data);
+            }
+            free(device);
+        }
         free(map->regions[i]);
     }
     free(map->regions);
     free(map);
+}
+
+void c16memmap_print(C16MemoryMap *map)
+{
+    printf("Memory map:\n");
+    for (int i = 0; i < map->regionCount; i++)
+    {
+        printf("  %04X - %04X: %s\n", map->regions[i]->start, map->regions[i]->end, map->regions[i]->device->name);
+    }
+    printf("\n");
 }
 
 void c16memmap_map(C16MemoryMap *map, C16MemoryAccessDevice *device, uint16_t start, uint16_t end, char remap)

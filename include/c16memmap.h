@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 typedef struct MemoryAccessDevice {
+    char name[32];
     void *data; // Pointer to device data - can be NULL if not needed (e.g. Screen)
     uint8_t (*getUint8)(void *data, uint16_t address);
     void (*setUint8)(void *data, uint16_t address, uint8_t value);
@@ -36,4 +37,5 @@ uint8_t c16memmap_getUint8(C16MemoryMap *map, uint16_t address);
 void c16memmap_setUint8(C16MemoryMap *map, uint16_t address, uint8_t value);
 void c16memmap_load(C16MemoryMap *map, uint16_t startAdress, uint8_t *data, size_t length);
 
+void c16memmap_print(C16MemoryMap *map);
 #endif

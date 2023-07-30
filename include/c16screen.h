@@ -1,6 +1,7 @@
 #ifndef _c16screen_h_
 #define _c16screen_h_
 #include <c16memmap.h>
+#include <string.h>
 
 C16MemoryAccessDevice* c16screen_createDevice();
 
