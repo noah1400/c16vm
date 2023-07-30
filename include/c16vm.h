@@ -27,6 +27,8 @@ void c16vm_destroy(c16vm_t *vm);
 
 void c16vm_load(c16vm_t *vm, uint16_t address, uint8_t *data, uint16_t size);
 
+void c16vm_intVector(c16vm_t *vm, uint8_t n, uint16_t address);
+
 void c16vm_run(c16vm_t *vm);
 
 void c16vm_printMap(c16vm_t *vm);
