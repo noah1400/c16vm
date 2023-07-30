@@ -27,6 +27,7 @@ int main(void)
         0xff
     }, 25);
 
+    vm->debug = 1;
     c16vm_run(vm);
 
     c16vm_destroy(vm);
