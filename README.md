@@ -2,6 +2,8 @@
 
  16-bit Virtual Machine implemented in C
 
+ This project was my attempt to delve deeper into the concepts of memory maps, stacks, instructions, and virtual machines in general. However, during the development process, I came to the realization that the current 16-bit address range limits the functionality. Therefore, I have decided to pause this project temporarily and upgrade to a version with a larger address range (32 or 64 bits).
+
 ## Build
 
 ```txt
