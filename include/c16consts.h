@@ -1,6 +1,14 @@
 #ifndef _c16consts_h
 #define _c16consts_h
 
+#ifndef FALSE
+#define FALSE 0
+#endif
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+
 #define REG_COUNT 14
 
 #define REG_IP 0
