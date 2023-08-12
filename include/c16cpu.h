@@ -13,6 +13,7 @@
     #define SLEEP_MS(x) Sleep(x)
 #else
     #include <unistd.h>
+    #include <time.h>
     #define SLEEP_MS(x) usleep(x*1000)
 #endif
 
