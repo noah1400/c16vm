@@ -10,6 +10,8 @@
 gcc -o c16vm c16memory.c c16cpu.c c16memmap.c c16screen.c c16membank.c c16graphics.c c16vm.c c16main.c -Iinclude  -Wall -Werror -Wpedantic
 ```
 
+compiles on linux and windows machines
+
 ## Instruction Set
 
 All instructions and opcodes listed in [c16instructions.h](https://github.com/noah1400/c16vm/blob/main/include/c16instructions.h)
